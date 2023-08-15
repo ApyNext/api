@@ -7,4 +7,5 @@ edition = "2021"
 axum = "0.6.18"
 shuttle-axum = "0.23.0"
 shuttle-runtime = "0.23.0"
+shuttle-shared-db = { version = "0.23.0", features = ["postgres-rustls"] }
 tokio = "1.28.2"
