@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS users (
+    id  BIGSERIAL PRIMARY KEY,
+    username VARCHAR(15) UNIQUE,
+    email VARCHAR(50) UNIQUE,
+    password VARCHAR(128) NOT NULL,
+    birthdate TIMESTAMPTZ NOT NULL,
+    dark_mode BOOLEAN NOT NULL DEFAULT TRUE,
+    biography VARCHAR(300) NOT NULL DEFAULT ''
+)

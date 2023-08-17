@@ -18,3 +18,4 @@ Cargo.lock
 
 /target
 Secrets.toml
+.env
