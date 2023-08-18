@@ -8,4 +8,5 @@ pub struct RegisterUser {
     pub password: String,
     pub birthdate: OffsetDateTime,
     pub biography: String,
+    pub is_male: Option<bool>,
 }

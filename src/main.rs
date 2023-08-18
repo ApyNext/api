@@ -1,7 +1,10 @@
+mod middlewares;
 mod routes;
 mod structs;
+mod utils;
 
-use axum::{routing::get, Router};
+use axum::{middleware, routing::post, Router};
+use middlewares::logger_middleware::logger_middleware;
 use routes::register_route::register_route;
 use sqlx::PgPool;
 
@@ -18,7 +21,8 @@ async fn axum(
         .expect("Failed to run migrations");
 
     let router = Router::new()
-        .route("/", get(register_route))
+        .route("/register", post(register_route))
+        .layer(middleware::from_fn(logger_middleware))
         .with_state(pool);
 
     Ok(router.into())
