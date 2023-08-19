@@ -3,26 +3,31 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use hyper::StatusCode;
 use sha2::{Digest, Sha512};
 use shuttle_runtime::tracing::info;
-use sqlx::PgPool;
+use time::OffsetDateTime;
 
-use crate::{structs::register_user::RegisterUser, utils::register::generate_token};
+use crate::{structs::register_user::RegisterUser, utils::register::generate_token, AppState};
 
 pub async fn register_route(
-    State(pool): State<PgPool>,
-    Json(mut register_user): Json<RegisterUser>,
+    State(app_state): State<AppState>,
+    Json(register_user): Json<RegisterUser>,
 ) -> Response {
     let mut hasher = Sha512::new();
     hasher.update(register_user.password);
-    register_user.password = format!("{:x}", hasher.finalize());
+    let password = format!("{:x}", hasher.finalize());
     let token = generate_token();
-    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, register_user.email, register_user.password, register_user.birthdate, register_user.biography, register_user.is_male, token).execute(&pool).await {
-        Ok(_) => (),
+    let birthdate = match OffsetDateTime::from_unix_timestamp(register_user.birthdate) {
+        Ok(birthdate) => birthdate,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, register_user.email, password, birthdate, register_user.biography, register_user.is_male, token).execute(&app_state.pool).await {
+        Ok(_) => "ok".into_response(),
         Err(e) => {
             info!("{e}");
-            return "error".into_response();
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
-    };
-    "ok".into_response()
+    }
 }

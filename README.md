@@ -4,7 +4,7 @@ L'API officielle de ApyNext
 # Configuration
 - Configurez Postgres sur votre machine, plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html). Choisissez également un mot de passe pour l'utilisateur postgres de la base de données.
 - Installez la CLI de Shuttle, plus d'infos [ici](https://docs.shuttle.rs/introduction/installation).
-- Renommez (ou copiez) le fichier Secrets.toml.example en Secrets.toml et renseignez le mot de passe de la base de données
+- Renommez (ou copiez) les fichiers Secrets.toml.example en Secrets.toml et .env.example en .env et renseignez les informations manquantes
 
 # Lancer l'API
 Pour lancer l'API localement, il suffit d'exécuter la commande
