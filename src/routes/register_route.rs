@@ -1,78 +1,61 @@
-use axum::{
-    extract::State,
-    response::{IntoResponse, Response},
-    Json,
-};
+use axum::response::Response;
+use axum::{extract::State, response::IntoResponse, Json};
 use hyper::Method;
 use hyper::StatusCode;
 use sha2::{Digest, Sha512};
-use shuttle_runtime::tracing::{info, warn};
-use shuttle_secrets::SecretStore;
+use shuttle_runtime::tracing::warn;
 use time::OffsetDateTime;
 
+use crate::utils::register::check_register_infos;
+use crate::utils::register::create_email_jwt;
 use crate::{
-    structs::register_user::RegisterUser,
-    utils::register::{generate_token, send_html_message},
+    structs::{register_user::RegisterUser, user::User},
+    utils::register::send_html_message,
     AppState,
 };
 
 pub async fn register_route(
     method: Method,
     State(app_state): State<AppState>,
-    Json(register_user): Json<RegisterUser>,
-    #[shuttle_secrets::Secrets] secrets: SecretStore,
+    Json(mut register_user): Json<RegisterUser>,
 ) -> Response {
+    register_user.username = register_user.username.to_lowercase();
+    register_user.email = register_user.email.to_lowercase();
+    check_register_infos(&register_user).map_err(|error| return error);
     let mut hasher = Sha512::new();
     hasher.update(register_user.password);
     let password = format!("{:x}", hasher.finalize());
-    let token = generate_token();
-    let email_confirm_token = generate_token();
     let birthdate = match OffsetDateTime::from_unix_timestamp(register_user.birthdate) {
         Ok(birthdate) => birthdate,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Date invalide").into_response(),
+        Err(e) => {
+            warn!("{}", e);
+            return (StatusCode::FORBIDDEN, "Date de naissance invalide").into_response();
+        }
     };
-    let username = register_user.username.to_lowercase();
-    let email = format!(
-        "{}|{}",
-        email_confirm_token,
-        register_user.email.to_lowercase()
-    );
 
-    match match sqlx::query!("SELECT * FROM users WHERE email = $1", email)
+    match match sqlx::query!("SELECT * FROM users WHERE email = $1", register_user.email)
         .fetch_optional(&app_state.pool)
         .await
     {
         Ok(result) => result,
-        Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
-        }
+        Err(e) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     } {
         Some(_) => return (StatusCode::FORBIDDEN, "Adresse email déjà utilisée").into_response(),
         None => (),
     };
 
-    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", username, email, password, birthdate, register_user.biography, register_user.is_male, token).execute(&app_state.pool).await {
-        Ok(_) => (),
-        Err(e) => {
-            info!("{e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
-        }
-    }
+    let account = match sqlx::query_as!(User, "INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;", register_user.username, register_user.email, password, birthdate, register_user.biography, register_user.is_male, "").fetch_one(&app_state.pool).await {
+        Ok(account) => account,
+        Err(e) => return e.to_string().into_response()
+    };
 
-    match sqlx::query!(
-        "INSERT INTO email_confirm (email, token) VALUES ($1, $2);",
-        email,
-        email_confirm_token
-    )
-    .execute(&app_state.pool)
-    .await
+    println!("{:?}", account);
+
+    let email_confirm_token = match create_email_jwt(register_user.email.clone(), "test".as_bytes())
     {
-        Ok(_) => (),
-        Err(e) => {
-            info!("{e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
-        }
-    }
+        Ok(jwt) => jwt,
+        Err(code) => return code.into_response(),
+    };
 
     match send_html_message(
         app_state.smtp_client,
@@ -86,5 +69,6 @@ pub async fn register_route(
         }
     };
 
+    // create_jwt(user_infos, "secret_key".as_bytes()).map_err(|e| e)
     "ok".into_response()
 }

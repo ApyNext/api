@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 axum = "0.6.20"
 chrono = "0.4.26"
+email_address = "0.2.4"
 hyper = "0.14.27"
 jsonwebtoken = "8.3.0"
 lettre = "0.10.4"
