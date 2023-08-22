@@ -24,13 +24,20 @@ struct Claims {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct RefreshClaims {
+    exp: usize,
+    iat: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfos {
-    pub id: i128,
+    pub id: i64,
     pub permission: usize,
 }
 
-pub fn generate_token() -> String {
-    Alphanumeric.sample_string(&mut rand::thread_rng(), 256)
+#[derive(Serialize, Deserialize)]
+pub struct Record {
+    pub id: i64,
 }
 
 pub fn send_html_message(
@@ -42,7 +49,7 @@ pub fn send_html_message(
     match smtp_client.send(
         &Message::builder()
             .from(Mailbox {
-                name: Some("Email confirmation".to_string()),
+                name: Some("ApyNext".to_string()),
                 email: Address::new("email.confirmation", "creativeblogger.org").unwrap(),
             })
             .to(Mailbox {
@@ -78,15 +85,11 @@ pub fn create_jwt(user_infos: UserInfos, secret: &[u8]) -> Result<String, Status
     })
 }
 
-pub fn create_email_jwt(email: String, secret: &[u8]) -> Result<String, StatusCode> {
+pub fn create_email_jwt(sub: String, secret: &[u8]) -> Result<String, StatusCode> {
     let now = Utc::now();
     let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(15)).timestamp() as usize;
-    let claims = Claims {
-        iat,
-        exp,
-        sub: email,
-    };
+    let exp = (now + Duration::minutes(5)).timestamp() as usize;
+    let claims = Claims { iat, exp, sub };
     encode(
         &Header::default(),
         &claims,
@@ -130,4 +133,22 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub fn create_refresh_jwt(secret: &[u8]) -> Result<String, StatusCode> {
+    let mut now = Utc::now();
+    let iat = now.timestamp() as usize;
+    let exp_in = Duration::days(365);
+    now += exp_in;
+    let exp = now.timestamp() as usize;
+    let claims = RefreshClaims { iat, exp };
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret),
+    )
+    .map_err(|e| {
+        error!("Erreur lors de la création du refresh token : {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
 }
