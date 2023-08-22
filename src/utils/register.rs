@@ -1,33 +1,11 @@
-use chrono::prelude::*;
-use chrono::Duration;
 use email_address::EmailAddress;
-use hyper::StatusCode;
-use jsonwebtoken::encode;
-use jsonwebtoken::EncodingKey;
-use jsonwebtoken::Header;
 use lettre::{
     message::{header::ContentType, Mailbox},
     Address, Message, SmtpTransport, Transport,
 };
-use rand::distributions::{Alphanumeric, DistString};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use shuttle_runtime::tracing::log::error;
 
 use crate::structs::register_user::RegisterUser;
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    exp: usize,
-    iat: usize,
-    sub: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct RefreshClaims {
-    exp: usize,
-    iat: usize,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfos {
@@ -66,41 +44,6 @@ pub fn send_html_message(
     }
 }
 
-pub fn create_jwt(user_infos: UserInfos, secret: &[u8]) -> Result<String, StatusCode> {
-    let mut now = Utc::now();
-    let iat = now.timestamp() as usize;
-    let exp_in = Duration::minutes(15);
-    now += exp_in;
-    let exp = now.timestamp() as usize;
-    let sub = json!(user_infos).to_string();
-    let claims = Claims { iat, exp, sub };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| {
-        error!("Erreur lors de la création du token : {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
-}
-
-pub fn create_email_jwt(sub: String, secret: &[u8]) -> Result<String, StatusCode> {
-    let now = Utc::now();
-    let iat = now.timestamp() as usize;
-    let exp = (now + Duration::minutes(5)).timestamp() as usize;
-    let claims = Claims { iat, exp, sub };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| {
-        error!("Erreur lors de la création du token d'email : {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
-}
-
 pub fn check_register_infos(user: &RegisterUser) -> Result<(), String> {
     if user.username.len() < 5 || user.username.len() > 12 {
         return Err(
@@ -133,22 +76,4 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-pub fn create_refresh_jwt(secret: &[u8]) -> Result<String, StatusCode> {
-    let mut now = Utc::now();
-    let iat = now.timestamp() as usize;
-    let exp_in = Duration::days(365);
-    now += exp_in;
-    let exp = now.timestamp() as usize;
-    let claims = RefreshClaims { iat, exp };
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| {
-        error!("Erreur lors de la création du refresh token : {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
 }
