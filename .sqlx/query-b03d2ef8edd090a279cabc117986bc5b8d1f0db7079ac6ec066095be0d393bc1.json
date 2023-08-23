@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM users WHERE email_verified = FALSE AND created_at + INTERVAL '10 minutes' < NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "b03d2ef8edd090a279cabc117986bc5b8d1f0db7079ac6ec066095be0d393bc1"
+}
