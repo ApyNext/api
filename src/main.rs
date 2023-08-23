@@ -4,7 +4,9 @@ mod structs;
 mod utils;
 
 use axum::{middleware, routing::post, Router};
+use shuttle_runtime::tracing::warn;
 
+use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use middlewares::logger_middleware::logger_middleware;
 use routes::email_confirm_route::email_confirm_route;
@@ -19,6 +21,7 @@ pub struct AppState {
     secret_key: String,
 }
 
+//TODO change by front URL
 const API_URL: &str = "https://apynext.shuttleapp.rs";
 
 #[shuttle_runtime::main]
@@ -44,6 +47,12 @@ async fn axum(
     let secret_key = secrets
         .get("ENCODING_KEY")
         .expect("Please set ENCODING_KEY value in Secrets.toml");
+
+    tokio::select! {
+        _ = delete_not_activated_expired_accounts(&pool) => {
+            warn!("This should never happen");
+        }
+    }
 
     let app_state = AppState {
         pool,

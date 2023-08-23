@@ -4,7 +4,6 @@ use hyper::StatusCode;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use shuttle_runtime::tracing::error;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -19,11 +18,7 @@ struct RefreshClaims {
     iat: usize,
 }
 
-pub fn create_jwt(
-    sub: Option<String>,
-    secret: &[u8],
-    exp_in: Duration,
-) -> Result<String, StatusCode> {
+pub fn create_jwt(sub: Option<String>, secret: &[u8], exp_in: Duration) -> Result<String, String> {
     let now = Utc::now();
     let iat = now.timestamp() as usize;
     let exp = (now + exp_in).timestamp() as usize;
@@ -31,15 +26,17 @@ pub fn create_jwt(
         Some(sub) => json!(Claims { iat, exp, sub }),
         None => json!(RefreshClaims { iat, exp }),
     };
-    encode(
+    match encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| {
-        error!("Erreur lors de la création du token : {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
+    ) {
+        Ok(jwt) => Ok(jwt),
+        Err(e) => Err(format!(
+            "Erreur lors de la génération du JWT (avec une expiration : {}) : {}",
+            exp_in, e
+        )),
+    }
 }
 
 pub fn decode_email_jwt(jwt: &str, secret: &[u8]) -> Result<String, Response> {

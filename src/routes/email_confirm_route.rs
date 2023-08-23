@@ -8,7 +8,7 @@ use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
 
 use crate::{
-    utils::jwt::{create_jwt, decode_email_jwt},
+    utils::jwt::{create_jwt, decode_email_jwt, decode_refresh_jwt},
     AppState,
 };
 
@@ -66,7 +66,7 @@ pub async fn email_confirm_route(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    match decode_email_jwt(&email_confirm_user.token, app_state.secret_key.as_bytes()) {
+    match decode_refresh_jwt(&email_confirm_user.token, app_state.secret_key.as_bytes()) {
         Ok(_) => (),
         Err(res) => {
             warn!(
@@ -83,12 +83,9 @@ pub async fn email_confirm_route(
         Duration::minutes(15),
     ) {
         Ok(jwt) => jwt.into_response(),
-        Err(status_code) => {
-            warn!(
-                "{} /register/email_confirm Error while creating JWT : {}",
-                method, status_code
-            );
-            return status_code.into_response();
+        Err(e) => {
+            warn!("{} /register/email_confirm {}", method, e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
 }

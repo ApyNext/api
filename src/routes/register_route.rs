@@ -23,7 +23,7 @@ pub async fn register_route(
         Ok(_) => (),
         Err(e) => {
             warn!("{} /register {}", method, e);
-            return e.into_response();
+            return (StatusCode::FORBIDDEN, e).into_response();
         }
     }
     let mut hasher = Sha512::new();
@@ -36,6 +36,18 @@ pub async fn register_route(
             return (StatusCode::FORBIDDEN, "Date de naissance invalide").into_response();
         }
     };
+
+    if birthdate.year() < 1900 || birthdate > OffsetDateTime::now_utc() {
+        warn!(
+            "{} /register La date de naissance doit être située entre 1900 et maintenant.",
+            method
+        );
+        return (
+            StatusCode::FORBIDDEN,
+            "La date de naissance doit être située entre 1900 et maintenant.",
+        )
+            .into_response();
+    }
 
     match match sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
         .fetch_optional(&app_state.pool)
@@ -62,24 +74,27 @@ pub async fn register_route(
         Ok(token) => token,
         Err(e) => {
             warn!("{} /register {}", method, e);
-            return e.into_response();
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
     let email_confirm_token = match create_jwt(
         Some(register_user.email.to_string()),
         app_state.secret_key.as_bytes(),
-        Duration::minutes(5),
+        Duration::minutes(10),
     ) {
         Ok(jwt) => jwt,
-        Err(code) => return code.into_response(),
+        Err(e) => {
+            warn!("{} /register {}", method, e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
 
     match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, email_confirm_token, password, birthdate, register_user.biography, register_user.is_male, refresh_token).execute(&app_state.pool).await {
         Ok(_) => (),
         Err(e) => {
             warn!("{} /register {}", method, e);
-            return e.to_string().into_response();
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
