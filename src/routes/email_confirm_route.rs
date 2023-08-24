@@ -7,10 +7,7 @@ use hyper::{Method, StatusCode};
 use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
 
-use crate::{
-    utils::jwt::{create_jwt, decode_email_jwt, decode_refresh_jwt},
-    AppState,
-};
+use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct Token {
@@ -37,6 +34,7 @@ pub async fn email_confirm_route(
 ) -> Response {
     let Query(token) = query.unwrap_or_default();
     let token = token.token;
+    //TODO décommenter
     let email = match decode_email_jwt(&token, app_state.secret_key.as_bytes()) {
         Ok(email) => email,
         Err(res) => {
