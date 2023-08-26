@@ -3,7 +3,10 @@ mod routes;
 mod structs;
 mod utils;
 
+use std::sync::Arc;
+
 use axum::{middleware, routing::post, Router};
+use libaes::Cipher;
 use shuttle_runtime::tracing::warn;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
@@ -18,7 +21,7 @@ use sqlx::PgPool;
 pub struct AppState {
     pool: PgPool,
     smtp_client: SmtpTransport,
-    secret_key: String,
+    cipher: Arc<Cipher>,
 }
 
 //TODO change by front URL
@@ -57,7 +60,8 @@ async fn axum(
     let app_state = AppState {
         pool,
         smtp_client,
-        secret_key,
+        //Change to safe key
+        cipher: Arc::new(Cipher::new_256(b"12345678901234567890123456789012")),
     };
 
     let router = Router::new()

@@ -69,20 +69,10 @@ pub async fn register_route(
         None => (),
     };
 
-    //TODO uncomment
-    let refresh_token =
-        match create_token(None, app_state.secret_key.as_bytes(), Duration::days(365)) {
-            Ok(token) => token,
-            Err(e) => {
-                warn!("{} /register {}", method, e);
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        };
-
     let email_confirm_token = match create_token(
-        Some(register_user.email.to_string()),
-        app_state.secret_key.as_bytes(),
+        register_user.email.clone(),
         Duration::minutes(10),
+        &app_state.cipher,
     ) {
         Ok(jwt) => jwt,
         Err(e) => {
@@ -91,26 +81,26 @@ pub async fn register_route(
         }
     };
 
-    // match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, email_confirm_token, password, birthdate, register_user.biography, register_user.is_male, refresh_token).execute(&app_state.pool).await {
-    //     Ok(_) => (),
-    //     Err(e) => {
-    //         warn!("{} /register {}", method, e);
-    //         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    //     }
-    // };
+    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, email_confirm_token, password, birthdate, register_user.biography, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
+        Ok(_) => (),
+        Err(e) => {
+            warn!("{} /register {}", method, e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 
-    // match send_html_message(
-    //     app_state.smtp_client,
-    //     "Confirm email",
-    //     &format!("<h1>Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer, sinon vous pouvez ignorer cet email.</h1>", API_URL, email_confirm_token),
-    //     register_user.email.parse().unwrap(),
-    // ) {
-    //     Ok(_) => (),
-    //     Err(e) => {
-    //         warn!("{} /register {}", method, e);
-    //         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    //     }
-    // };
+    match send_html_message(
+        app_state.smtp_client,
+        "Confirm email",
+        &format!("<h1>Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer, sinon vous pouvez ignorer cet email.</h1>", API_URL, email_confirm_token),
+        register_user.email.parse().unwrap(),
+    ) {
+        Ok(_) => (),
+        Err(e) => {
+            warn!("{} /register {}", method, e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
 
     StatusCode::OK.into_response()
 }

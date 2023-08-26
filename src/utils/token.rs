@@ -14,7 +14,7 @@ struct Claims {
     sub: String,
 }
 
-pub fn create_token(sub: String, key: &[u8], exp_in: Duration) -> Result<String, String> {
+pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> Result<String, String> {
     //Get expiration timestamp
     let exp = (Utc::now() + exp_in).timestamp() as usize;
 
@@ -22,9 +22,6 @@ pub fn create_token(sub: String, key: &[u8], exp_in: Duration) -> Result<String,
     let claims = json!(Claims { exp, sub }).to_string();
 
     println!("{}", claims);
-
-    //Create cipher
-    let cipher = Cipher::new_256(b"12345678901234567890123456789012");
 
     //Generate nonce
     let mut nonce = [0u8; 16];
@@ -43,9 +40,7 @@ pub fn create_token(sub: String, key: &[u8], exp_in: Duration) -> Result<String,
     Ok(encrypted_encoded)
 }
 
-pub fn decode_email_token(jwt: &str, key: &[u8]) -> Result<String, Response> {
-    let cipher = Cipher::new_256(b"12345678901234567890123456789012");
-
+pub fn decode_token(jwt: &str, cipher: &Cipher) -> Result<String, Response> {
     //Decode datas
     let encyrpted_decoded = general_purpose::STANDARD.decode(jwt).unwrap();
     //Decrypt datas
@@ -58,28 +53,7 @@ pub fn decode_email_token(jwt: &str, key: &[u8]) -> Result<String, Response> {
     let claims: Claims = serde_json::from_str(&string_decrypted).unwrap();
 
     if claims.exp <= Utc::now().timestamp() as usize {
-        return Err((StatusCode::FORBIDDEN, "Lien de validation d'email expiré").into_response());
-    }
-
-    Ok(claims.sub)
-}
-
-pub fn decode_refresh_jwt(jwt: &str, secret: &[u8]) -> Result<String, Response> {
-    let cipher = Cipher::new_256(b"12345678901234567890123456789012");
-
-    //Decode datas
-    let encyrpted_decoded = general_purpose::STANDARD.decode(jwt).unwrap();
-    //Decrypt datas
-    let nonce = &encyrpted_decoded[..16];
-    let datas = &encyrpted_decoded[16..];
-    let decrypted = cipher.cbc_decrypt(nonce, datas);
-    let string_decrypted = String::from_utf8(decrypted).unwrap();
-    info!("{}", string_decrypted);
-
-    let claims: Claims = serde_json::from_str(&string_decrypted).unwrap();
-
-    if claims.exp <= Utc::now().timestamp() as usize {
-        return Err((StatusCode::FORBIDDEN, "Lien de validation de token expiré").into_response());
+        return Err((StatusCode::FORBIDDEN, "Token expiré").into_response());
     }
 
     Ok(claims.sub)
