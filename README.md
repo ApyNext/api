@@ -4,7 +4,7 @@ L'API officielle de ApyNext
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser la Dockerfile de ce projet :
 1) Installez Docker sur votre machine (plus d'informations [ici](https://www.docker.com/)).
-2) Exécutez cette commande en remplace `<mot de passe>` par le mot de passe que vous souhaitez pour la BDD :
+2) Exécutez cette commande en remplaçant `<mot de passe>` par le mot de passe que vous souhaitez pour la BDD :
 ```bash
 docker build -t postgres . && docker run -e POSTGRES_PASSWORD="<mot de passe>" -p 5432:5432 postgres
 ```

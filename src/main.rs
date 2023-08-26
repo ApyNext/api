@@ -15,7 +15,7 @@ use middlewares::logger_middleware::logger_middleware;
 use routes::email_confirm_route::email_confirm_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
-use sqlx::PgPool;
+use sqlx::{Acquire, PgPool};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -51,14 +51,8 @@ async fn axum(
         .get("ENCODING_KEY")
         .expect("Please set ENCODING_KEY value in Secrets.toml");
 
-    tokio::select! {
-        _ = delete_not_activated_expired_accounts(&pool) => {
-            warn!("This should never happen");
-        }
-    }
-
     let app_state = AppState {
-        pool,
+        pool: pool.clone(),
         smtp_client,
         //Change to safe key
         cipher: Arc::new(Cipher::new_256(b"12345678901234567890123456789012")),
@@ -69,6 +63,12 @@ async fn axum(
         .route("/register/email_confirm", post(email_confirm_route))
         .layer(middleware::from_fn(logger_middleware))
         .with_state(app_state);
+
+    tokio::select! {
+        _ = delete_not_activated_expired_accounts(&pool) => {
+            warn!("This should never happen");
+        }
+    }
 
     Ok(router.into())
 }
