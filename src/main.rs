@@ -3,11 +3,19 @@ mod routes;
 mod structs;
 mod utils;
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::{middleware, routing::post, Router};
+use axum::extract::ConnectInfo;
+use axum::response::{IntoResponse, Response};
+use axum::Router;
+use axum::{
+    middleware,
+    routing::{get, post},
+};
 use libaes::Cipher;
 use shuttle_runtime::tracing::warn;
+use shuttle_runtime::Service;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
@@ -15,13 +23,18 @@ use middlewares::logger_middleware::logger_middleware;
 use routes::email_confirm_route::email_confirm_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
-use sqlx::{Acquire, PgPool};
+use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
     pool: PgPool,
     smtp_client: SmtpTransport,
     cipher: Arc<Cipher>,
+}
+
+pub struct CustomService {
+    router: Router,
+    pool: PgPool,
 }
 
 //TODO change by front URL
@@ -31,7 +44,7 @@ const API_URL: &str = "https://apynext.shuttleapp.rs";
 async fn axum(
     #[shuttle_secrets::Secrets] secrets: SecretStore,
     #[shuttle_shared_db::Postgres(local_uri = "{secrets.DATABASE_URL}")] pool: PgPool,
-) -> shuttle_axum::ShuttleAxum {
+) -> Result<CustomService, shuttle_runtime::Error> {
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
@@ -51,24 +64,48 @@ async fn axum(
         .get("ENCODING_KEY")
         .expect("Please set ENCODING_KEY value in Secrets.toml");
 
+    if secret_key.len() != 32 {
+        panic!("La clé d'encryption doit avoir une taille de 32 bytes");
+    }
+
+    delete_not_activated_expired_accounts(&pool).await;
+
     let app_state = AppState {
         pool: pool.clone(),
         smtp_client,
         //Change to safe key
-        cipher: Arc::new(Cipher::new_256(b"12345678901234567890123456789012")),
+        cipher: Arc::new(Cipher::new_256(&secret_key.as_bytes().try_into().unwrap())),
     };
 
     let router = Router::new()
+        .route("/", get(test_route))
         .route("/register", post(register_route))
         .route("/register/email_confirm", post(email_confirm_route))
         .layer(middleware::from_fn(logger_middleware))
         .with_state(app_state);
 
-    tokio::select! {
-        _ = delete_not_activated_expired_accounts(&pool) => {
-            warn!("This should never happen");
-        }
-    }
+    Ok(CustomService { pool, router })
+}
 
-    Ok(router.into())
+#[shuttle_runtime::async_trait]
+impl Service for CustomService {
+    async fn bind(self, addr: std::net::SocketAddr) -> Result<(), shuttle_runtime::Error> {
+        let serve_router = axum::Server::bind(&addr).serve(
+            self.router
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        );
+
+        tokio::select! {
+            _ = delete_not_activated_expired_accounts(&self.pool) => {
+                warn!("This should never happen");
+            },
+            _ = serve_router => {}
+        }
+
+        Ok(())
+    }
+}
+
+pub async fn test_route(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Response {
+    addr.to_string().into_response()
 }

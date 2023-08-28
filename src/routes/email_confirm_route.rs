@@ -29,10 +29,6 @@ impl Default for Token {
     }
 }
 
-pub struct EmailConfirmUser {
-    id: i64,
-}
-
 pub async fn email_confirm_route(
     method: Method,
     query: Option<Query<Token>>,
@@ -40,7 +36,7 @@ pub async fn email_confirm_route(
 ) -> Response {
     let Query(email_verification_token) = query.unwrap_or_default();
     let email_verification_token = email_verification_token.token;
-    
+
     let email = match decode_token(&email_verification_token, &app_state.cipher) {
         Ok(email) => email,
         Err(res) => {
@@ -63,7 +59,7 @@ pub async fn email_confirm_route(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let email_confirm_user = match sqlx::query!(
+    match sqlx::query!(
         "UPDATE users SET email = $1, email_verified = TRUE, token = $2 WHERE email = $3;",
         email,
         token,
