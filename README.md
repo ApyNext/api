@@ -15,11 +15,10 @@ docker build -t postgres . && docker run -e POSTGRES_PASSWORD="<mot de passe>" -
 # Lancer l'API
 Pour lancer l'API localement, il suffit d'exécuter les commandes
 ```bash
-cargo sqlx prepare --database-url <l'URL de la BDD>
+cargo sqlx migrate run --database-url <l'URL de la BDD>
 ```
-et
 ```bash
-cargo sqlx migrate run
+cargo sqlx prepare --database-url <l'URL de la BDD>
 ```
 et
 ```bash
@@ -45,7 +44,7 @@ Renvoie :
 - Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
 
-### Vérifier l'email
+### Vérifier l'email (lien envoyé par email)
 Requête : `POST /register/email_confirm`
 
 Query :

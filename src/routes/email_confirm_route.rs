@@ -35,7 +35,7 @@ pub async fn email_confirm_route(
     State(app_state): State<AppState>,
 ) -> Response {
     let Query(email_verification_token) = query.unwrap_or_default();
-    let email_verification_token = email_verification_token.token;
+    let email_verification_token = urlencoding::decode(&email_verification_token.token).unwrap().to_string();
 
     let email = match decode_token(&email_verification_token, &app_state.cipher) {
         Ok(email) => email,
