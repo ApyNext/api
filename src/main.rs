@@ -3,16 +3,10 @@ mod routes;
 mod structs;
 mod utils;
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::ConnectInfo;
-use axum::response::{IntoResponse, Response};
 use axum::Router;
-use axum::{
-    middleware,
-    routing::{get, post},
-};
+use axum::{middleware, routing::post};
 use libaes::Cipher;
 use shuttle_runtime::tracing::warn;
 use shuttle_runtime::Service;
@@ -50,7 +44,7 @@ async fn axum(
         .await
         .expect("Failed to run migrations");
 
-    let smtp_client = SmtpTransport::relay("mail.creativeblogger.org")
+    let smtp_client = SmtpTransport::relay(&secrets.get("EMAIL_SMTP_SERVER").unwrap())
         .unwrap()
         .credentials(Credentials::new(
             secrets.get("EMAIL").unwrap(),
@@ -68,8 +62,6 @@ async fn axum(
         panic!("La clé d'encryption doit avoir une taille de 32 bytes");
     }
 
-    delete_not_activated_expired_accounts(&pool).await;
-
     let app_state = AppState {
         pool: pool.clone(),
         smtp_client,
@@ -78,7 +70,6 @@ async fn axum(
     };
 
     let router = Router::new()
-        .route("/", get(test_route))
         .route("/register", post(register_route))
         .route("/register/email_confirm", post(email_confirm_route))
         .layer(middleware::from_fn(logger_middleware))
@@ -90,10 +81,7 @@ async fn axum(
 #[shuttle_runtime::async_trait]
 impl Service for CustomService {
     async fn bind(self, addr: std::net::SocketAddr) -> Result<(), shuttle_runtime::Error> {
-        let serve_router = axum::Server::bind(&addr).serve(
-            self.router
-                .into_make_service_with_connect_info::<SocketAddr>(),
-        );
+        let serve_router = axum::Server::bind(&addr).serve(self.router.into_make_service());
 
         tokio::select! {
             _ = delete_not_activated_expired_accounts(&self.pool) => {
@@ -104,8 +92,4 @@ impl Service for CustomService {
 
         Ok(())
     }
-}
-
-pub async fn test_route(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Response {
-    addr.to_string().into_response()
 }
