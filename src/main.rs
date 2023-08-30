@@ -52,7 +52,9 @@ async fn axum(
         ))
         .build();
 
-    println!("{}", smtp_client.test_connection().unwrap());
+    if smtp_client.test_connection().unwrap() {
+        info!("Connexion SMTP effectuée avec succès !");
+    }
 
     let secret_key = secrets
         .get("ENCODING_KEY")

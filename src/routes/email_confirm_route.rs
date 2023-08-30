@@ -10,23 +10,16 @@ use rand::{
 };
 use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
+use crate::utils::register::DecodeTokenErrorKind;
 
 use crate::{
     utils::token::{create_token, decode_token},
     AppState,
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct Token {
     token: String,
-}
-
-impl Default for Token {
-    fn default() -> Self {
-        Self {
-            token: "".to_string(),
-        }
-    }
 }
 
 pub async fn email_confirm_route(
@@ -35,17 +28,35 @@ pub async fn email_confirm_route(
     State(app_state): State<AppState>,
 ) -> Response {
     let Query(email_verification_token) = query.unwrap_or_default();
-    let email_verification_token = urlencoding::decode(&email_verification_token.token).unwrap().to_string();
+    let email_verification_token = email_verification_token.token;
+    if email_verification_token.is_empty() {
+        warn!("{} /register/email_confirm Token missing", method);
+        return (StatusCode::FORBIDDEN, "Token manquant").into_response();
+    }
+    let email_verification_token = match urlencoding::decode(&email_verification_token) {
+        Ok(token) => token,
+        Err(e) => {
+            warn!("{} /register/email_confirm Error while decoding token : {}", method, e);
+            return (StatusCode::FORBIDDEN, "Token invalide").into_response();
+        }
+    }.to_string();
 
     let email = match decode_token(&email_verification_token, &app_state.cipher) {
         Ok(email) => email,
-        Err(res) => {
+        Err(DecodeTokenErrorKind::InvalidToken(e)) => {
             warn!(
-                "{} /register/email_confirm Error while decoding token : {}",
+                "{} /register/email_confirm {}",
                 method,
-                res.status()
+                e
             );
-            return res;
+            return (StatusCode::FORBIDDEN, "Lien invalide").into_response();
+        },
+        Err(DecodeTokenErrorKind::ExpiredToken) => {
+            warn!(
+                "{} /register/email_confirm Expired token",
+                method
+            );
+            return (StatusCode::FORBIDDEN, "Lien d'activation expiré").into_response();
         }
     };
     let token = match create_token(

@@ -18,6 +18,11 @@ pub struct Record {
     pub id: i64,
 }
 
+pub enum DecodeTokenErrorKind {
+    InvalidToken(String),
+    ExpiredToken
+}
+
 pub fn send_html_message(
     smtp_client: SmtpTransport,
     subject: &str,

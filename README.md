@@ -52,6 +52,5 @@ Query :
 
 Renvoie :
 - Code de status `200 Ok` et un JWT de connexion
-- Code de status `401 Unauthorized` quand le lien est invalide
-- Code de status `403 Forbidden` quand le lien est expiré
+- Code de status `403 Forbidden` et le message d'erreur quand le lien est manquant, invalide ou expiré
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
