@@ -8,7 +8,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::{middleware, routing::post};
 use libaes::Cipher;
-use shuttle_runtime::tracing::warn;
+use shuttle_runtime::tracing::{info, warn};
 use shuttle_runtime::Service;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
@@ -18,6 +18,9 @@ use routes::email_confirm_route::email_confirm_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
+use tower_http::cors::CorsLayer;
+use hyper::http::Method;
+use hyper::header::HeaderValue;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -33,6 +36,7 @@ pub struct CustomService {
 
 //TODO change by front URL
 const API_URL: &str = "https://apynext.shuttleapp.rs";
+const FRONT_URL: &str = "https://apynext.creativeblogger.org";
 
 #[shuttle_runtime::main]
 async fn axum(
@@ -67,13 +71,17 @@ async fn axum(
     let app_state = AppState {
         pool: pool.clone(),
         smtp_client,
-        //Change to safe key
         cipher: Arc::new(Cipher::new_256(&secret_key.as_bytes().try_into().unwrap())),
     };
+
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_origin(FRONT_URL.parse::<HeaderValue>().unwrap());
 
     let router = Router::new()
         .route("/register", post(register_route))
         .route("/register/email_confirm", post(email_confirm_route))
+        .layer(cors)
         .layer(middleware::from_fn(logger_middleware))
         .with_state(app_state);
 

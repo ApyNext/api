@@ -6,6 +6,7 @@ use hyper::StatusCode;
 use sha2::{Digest, Sha512};
 use shuttle_runtime::tracing::warn;
 use time::OffsetDateTime;
+use lettre::Address;
 
 use crate::utils::register::check_register_infos;
 use crate::utils::token::create_token;
@@ -26,6 +27,15 @@ pub async fn register_route(
             return (StatusCode::FORBIDDEN, e).into_response();
         }
     }
+
+    let email = match register_user.email.parse::<Address>() {
+        Ok(email) => email,
+        Err(e) => {
+            warn!("{} /register Cannot parse email : {}", method, e);
+            return (StatusCode::FORBIDDEN, "Email invalide").into_response();
+        }
+    };
+
     let mut hasher = Sha512::new();
     hasher.update(register_user.password);
     let password = format!("{:x}", hasher.finalize());
@@ -95,7 +105,7 @@ pub async fn register_route(
         app_state.smtp_client,
         "Confirm email",
         &format!("<h1>Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer, sinon vous pouvez ignorer cet email.</h1>", API_URL, email_confirm_token),
-        register_user.email.parse().unwrap(),
+        email,
     ) {
         Ok(_) => (),
         Err(e) => {

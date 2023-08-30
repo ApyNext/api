@@ -4,6 +4,8 @@ use lettre::{
     Address, Message, SmtpTransport, Transport,
 };
 use serde::{Deserialize, Serialize};
+use axum::response::{Response, IntoResponse};
+use hyper::StatusCode;
 
 use crate::structs::register_user::RegisterUser;
 
@@ -18,9 +20,26 @@ pub struct Record {
     pub id: i64,
 }
 
-pub enum DecodeTokenErrorKind {
-    InvalidToken(String),
+pub enum AppError {
+    //Token decoding errors
+    InvalidToken,
     ExpiredToken
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let body = match self {
+            AppError::InvalidToken => "Token invalide",
+            AppError::ExpiredToken => "Token expiré"
+        };
+
+        let status_code = match self {
+            AppError::InvalidToken | AppError::ExpiredToken => StatusCode::FORBIDDEN,
+            //Add errors here
+        };
+
+        (status_code, body).into_response()
+    }
 }
 
 pub fn send_html_message(

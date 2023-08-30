@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
 };
 use chrono::Duration;
 use hyper::{Method, StatusCode};
@@ -10,7 +10,6 @@ use rand::{
 };
 use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
-use crate::utils::register::DecodeTokenErrorKind;
 
 use crate::{
     utils::token::{create_token, decode_token},
@@ -26,7 +25,7 @@ pub async fn email_confirm_route(
     method: Method,
     query: Option<Query<Token>>,
     State(app_state): State<AppState>,
-) -> Response {
+) -> impl IntoResponse {
     let Query(email_verification_token) = query.unwrap_or_default();
     let email_verification_token = email_verification_token.token;
     if email_verification_token.is_empty() {
@@ -41,22 +40,10 @@ pub async fn email_confirm_route(
         }
     }.to_string();
 
-    let email = match decode_token(&email_verification_token, &app_state.cipher) {
+    let email = match decode_token(&email_verification_token, &app_state.cipher, &format!("{} /register/email_confirm", method)) {
         Ok(email) => email,
-        Err(DecodeTokenErrorKind::InvalidToken(e)) => {
-            warn!(
-                "{} /register/email_confirm {}",
-                method,
-                e
-            );
-            return (StatusCode::FORBIDDEN, "Lien invalide").into_response();
-        },
-        Err(DecodeTokenErrorKind::ExpiredToken) => {
-            warn!(
-                "{} /register/email_confirm Expired token",
-                method
-            );
-            return (StatusCode::FORBIDDEN, "Lien d'activation expiré").into_response();
+        Err(res) => {
+            return res;
         }
     };
     let token = match create_token(
