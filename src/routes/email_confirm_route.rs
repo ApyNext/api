@@ -9,13 +9,16 @@ use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
 
 use crate::{
-    utils::{token::{create_token, decode_token}, app_error::AppError},
+    utils::{
+        app_error::AppError,
+        token::{create_token, decode_token},
+    },
     AppState,
 };
 
 #[derive(Deserialize, Default)]
 pub struct Token {
-    token: String,
+    pub token: String,
 }
 
 pub async fn email_confirm_route(
@@ -32,12 +35,20 @@ pub async fn email_confirm_route(
     let email_verification_token = match urlencoding::decode(&email_verification_token) {
         Ok(token) => token,
         Err(e) => {
-            warn!("{} /register/email_confirm Error while decoding token : {}", method, e);
+            warn!(
+                "{} /register/email_confirm Error while decoding token : {}",
+                method, e
+            );
             return Err(AppError::InvalidToken);
         }
-    }.to_string();
+    }
+    .to_string();
 
-    let email = decode_token(&email_verification_token, &app_state.cipher, &format!("{} /register/email_confirm", method))?;
+    let email = decode_token(
+        &email_verification_token,
+        &app_state.cipher,
+        &format!("{} /register/email_confirm", method),
+    )?;
 
     //Check if email is already used
     match match sqlx::query!("SELECT id FROM users WHERE email = $1", email)

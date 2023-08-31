@@ -1,10 +1,10 @@
 use std::{thread, time::Duration};
 
-use shuttle_runtime::tracing::{info, error};
+use shuttle_runtime::tracing::{error, info};
 use sqlx::PgPool;
 
 struct DeleteNotActivatedExpiredAccountsResult {
-    total: i64
+    total: i64,
 }
 
 pub async fn delete_not_activated_expired_accounts(pool: &PgPool) {

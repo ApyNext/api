@@ -15,4 +15,5 @@ pub struct User {
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     pub email_verified: bool,
+    pub is_banned: bool,
 }

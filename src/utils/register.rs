@@ -1,13 +1,13 @@
+use crate::structs::register_user::RegisterUser;
+use crate::utils::app_error::AppError;
 use email_address::EmailAddress;
 use lettre::{
     message::{header::ContentType, Mailbox},
     Address, Message, SmtpTransport, Transport,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha512};
 use shuttle_runtime::tracing::warn;
-
-use crate::structs::register_user::RegisterUser;
-use crate::utils::app_error::AppError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfos {
@@ -46,16 +46,16 @@ pub fn send_html_message(
         Err(e) => {
             warn!("{} Error while sending email : {}", header, e);
             Err(AppError::EmailSendError)
-        },
+        }
     }
 }
 
-pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
-    if user.username.len() < 5 || user.username.len() > 12 {
+pub fn check_username(username: &str) -> Result<(), AppError> {
+    if username.len() < 5 || username.len() > 12 {
         return Err(AppError::IncorrectUsernameLength);
     }
 
-    for (i, c) in user.username.char_indices() {
+    for (i, c) in username.char_indices() {
         if i == 0 {
             if !c.is_alphabetic() {
                 return Err(AppError::UsernameMustBeginByALetter);
@@ -67,9 +67,20 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
         }
     }
 
-    if !EmailAddress::is_valid(&user.email) {
+    Ok(())
+}
+
+pub fn check_email_address(email: &str) -> Result<(), AppError> {
+    if !EmailAddress::is_valid(email) {
         return Err(AppError::InvalidEmail);
     }
+    Ok(())
+}
+
+pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
+    check_username(&user.username)?;
+
+    check_email_address(&user.email)?;
 
     if user.password.len() < 8 {
         return Err(AppError::PasswordTooShort);
@@ -80,4 +91,10 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
     }
 
     Ok(())
+}
+
+pub fn hash_password(password: &str) -> String {
+    let mut hasher = Sha512::new();
+    hasher.update(password);
+    format!("{:x}", hasher.finalize())
 }

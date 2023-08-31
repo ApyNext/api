@@ -2,15 +2,15 @@ use axum::{extract::State, Json};
 use chrono::Duration;
 use hyper::Method;
 use hyper::StatusCode;
-use sha2::{Digest, Sha512};
+use lettre::Address;
 use shuttle_runtime::tracing::warn;
 use time::OffsetDateTime;
-use lettre::Address;
 
-use crate::utils::register::check_register_infos;
-use crate::utils::token::create_token;
 use crate::utils::app_error::AppError;
-use crate::API_URL;
+use crate::utils::register::check_register_infos;
+use crate::utils::register::hash_password;
+use crate::utils::token::create_token;
+use crate::FRONT_URL;
 use crate::{structs::register_user::RegisterUser, utils::register::send_html_message, AppState};
 
 pub async fn register_route(
@@ -30,9 +30,8 @@ pub async fn register_route(
         }
     };
 
-    let mut hasher = Sha512::new();
-    hasher.update(register_user.password);
-    let password = format!("{:x}", hasher.finalize());
+    let password = hash_password(&register_user.password);
+
     let birthdate = match OffsetDateTime::from_unix_timestamp(register_user.birthdate) {
         Ok(birthdate) => birthdate,
         Err(e) => {
@@ -56,7 +55,10 @@ pub async fn register_route(
     {
         Ok(result) => result,
         Err(e) => {
-            warn!("{} /register Error while checking if email address already exists : {}", method, e);
+            warn!(
+                "{} /register Error while checking if email address already exists : {}",
+                method, e
+            );
             return Err(AppError::InternalServerError);
         }
     } {
@@ -71,13 +73,19 @@ pub async fn register_route(
     };
 
     //Check if username is already used
-    match match sqlx::query!("SELECT id FROM users WHERE username = $1", register_user.username)
-        .fetch_optional(&app_state.pool)
-        .await
+    match match sqlx::query!(
+        "SELECT id FROM users WHERE username = $1",
+        register_user.username
+    )
+    .fetch_optional(&app_state.pool)
+    .await
     {
         Ok(result) => result,
         Err(e) => {
-            warn!("{} /register Error while checking if username already exists : {}", method, e);
+            warn!(
+                "{} /register Error while checking if username already exists : {}",
+                method, e
+            );
             return Err(AppError::InternalServerError);
         }
     } {
@@ -110,7 +118,7 @@ pub async fn register_route(
     send_html_message(
         app_state.smtp_client,
         "Confirm email",
-        &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer, sinon vous pouvez ignorer cet email.</p>", register_user.username, API_URL, email_confirm_token),
+        &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer, sinon vous pouvez ignorer cet email.</p>", register_user.username, FRONT_URL, email_confirm_token),
         email,
         &format!("{} /register", method),
     )?;

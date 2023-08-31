@@ -1,4 +1,4 @@
-use axum::response::{Response, IntoResponse};
+use axum::response::{IntoResponse, Response};
 use hyper::StatusCode;
 
 pub enum AppError {
@@ -21,6 +21,8 @@ pub enum AppError {
     UsernameAlreadyUsed,
     //Send email errors
     EmailSendError,
+    //Login route errors
+    IncorrectCredentials,
 }
 
 impl IntoResponse for AppError {
@@ -40,10 +42,24 @@ impl IntoResponse for AppError {
             AppError::EmailAddressAlreadyUsed => "Adresse email déjà utilisée",
             AppError::UsernameAlreadyUsed => "Pseudo déjà utilisé",
             AppError::EmailSendError => "Erreur lors de l'envoi de l'email de vérification.",
+            AppError::IncorrectCredentials => "Identifiants invalides",
         };
 
         let status_code = match self {
-            AppError::InvalidToken | AppError::ExpiredToken | AppError::TokenMissing | AppError::IncorrectUsernameLength | AppError::UsernameMustBeginByALetter | AppError::UsernameMustOnlyContainLettersDigitsAndUnderscores | AppError::InvalidEmail | AppError::PasswordTooShort | AppError::BiographyTooLong | AppError::InvalidBirthdate | AppError::EmailAddressAlreadyUsed | AppError::EmailSendError | AppError::UsernameAlreadyUsed => StatusCode::FORBIDDEN,
+            AppError::InvalidToken
+            | AppError::ExpiredToken
+            | AppError::TokenMissing
+            | AppError::IncorrectUsernameLength
+            | AppError::UsernameMustBeginByALetter
+            | AppError::UsernameMustOnlyContainLettersDigitsAndUnderscores
+            | AppError::InvalidEmail
+            | AppError::PasswordTooShort
+            | AppError::BiographyTooLong
+            | AppError::InvalidBirthdate
+            | AppError::EmailAddressAlreadyUsed
+            | AppError::EmailSendError
+            | AppError::UsernameAlreadyUsed
+            | AppError::IncorrectCredentials => StatusCode::FORBIDDEN,
             AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

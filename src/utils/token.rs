@@ -1,10 +1,10 @@
+use crate::utils::app_error::AppError;
 use base64::{engine::general_purpose, Engine};
 use chrono::{Duration, Utc};
 use libaes::Cipher;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use crate::utils::app_error::AppError;
 use shuttle_runtime::tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ pub fn decode_token(jwt: &str, cipher: &Cipher, header: &str) -> Result<String, 
         Err(e) => {
             warn!("{} Error while decoding token : {}", header, e);
             return Err(AppError::InvalidToken);
-        },
+        }
     };
     //Decrypt datas
     let nonce = &encyrpted_decoded[..16];
@@ -60,7 +60,10 @@ pub fn decode_token(jwt: &str, cipher: &Cipher, header: &str) -> Result<String, 
     let claims: Claims = match serde_json::from_str(&string_decrypted) {
         Ok(claims) => claims,
         Err(e) => {
-            warn!("{} Error while deserializing token to Claims : {}", header, e);
+            warn!(
+                "{} Error while deserializing token to Claims : {}",
+                header, e
+            );
             return Err(AppError::InvalidToken);
         }
     };

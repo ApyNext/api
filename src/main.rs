@@ -12,15 +12,17 @@ use shuttle_runtime::tracing::{info, warn};
 use shuttle_runtime::Service;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
+use hyper::header::HeaderValue;
+use hyper::http::Method;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use middlewares::logger_middleware::logger_middleware;
+use routes::a2f_login_route::a2f_login_route;
 use routes::email_confirm_route::email_confirm_route;
+use routes::login_route::login_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-use hyper::http::Method;
-use hyper::header::HeaderValue;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,8 +36,6 @@ pub struct CustomService {
     pool: PgPool,
 }
 
-//TODO change by front URL
-const API_URL: &str = "https://apynext.shuttleapp.rs";
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";
 
 #[shuttle_runtime::main]
@@ -81,6 +81,8 @@ async fn axum(
     let router = Router::new()
         .route("/register", post(register_route))
         .route("/register/email_confirm", post(email_confirm_route))
+        .route("/login", post(login_route))
+        .route("/login/a2f", post(a2f_login_route))
         .layer(cors)
         .layer(middleware::from_fn(logger_middleware))
         .with_state(app_state);
