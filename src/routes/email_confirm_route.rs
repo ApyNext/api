@@ -1,12 +1,13 @@
-use axum::extract::{Query, State};
+use axum::extract::State;
 use chrono::Duration;
 use hyper::Method;
+use hyper::StatusCode;
 use rand::{
     distributions::{Alphanumeric, DistString},
     rngs::OsRng,
 };
-use serde::Deserialize;
 use shuttle_runtime::tracing::warn;
+use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     utils::{
@@ -16,18 +17,13 @@ use crate::{
     AppState,
 };
 
-#[derive(Deserialize, Default)]
-pub struct Token {
-    pub token: String,
-}
-
 pub async fn email_confirm_route(
     method: Method,
-    query: Option<Query<Token>>,
     State(app_state): State<AppState>,
-) -> Result<String, AppError> {
-    let Query(email_verification_token) = query.unwrap_or_default();
-    let email_verification_token = email_verification_token.token;
+    cookies: Cookies,
+    body: String,
+) -> Result<StatusCode, AppError> {
+    let email_verification_token = body;
     if email_verification_token.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
         return Err(AppError::TokenMissing);
@@ -85,7 +81,10 @@ pub async fn email_confirm_route(
     .execute(&app_state.pool)
     .await
     {
-        Ok(_) => Ok(token),
+        Ok(_) => {
+            cookies.add(Cookie::new("session", token));
+            Ok(StatusCode::OK)
+        }
         Err(e) => {
             warn!(
                 "{} /register/email_confirm Error while verifying account : {}",

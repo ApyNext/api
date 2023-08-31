@@ -22,6 +22,7 @@ use routes::login_route::login_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
+use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
 #[derive(Clone)]
@@ -85,6 +86,7 @@ async fn axum(
         .route("/login/a2f", post(a2f_login_route))
         .layer(cors)
         .layer(middleware::from_fn(logger_middleware))
+        .layer(CookieManagerLayer::new())
         .with_state(app_state);
 
     Ok(CustomService { pool, router })

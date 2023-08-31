@@ -57,11 +57,11 @@ Renvoie :
 ### Vérifier l'email (lien envoyé par email)
 Requête : `POST /register/email_confirm`
 
-Query :
-- token : chaîne de caractères représentant un JWT de vérification d'email
+Body (châine de caractères) :
+- token de confirmation d'email
 
 Renvoie :
-- Code de status `200 Ok` et un JWT de connexion
+- Code de status `200 Ok` et un JWT de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
 
@@ -81,9 +81,9 @@ Renvoie :
 ### Vérifier la connexion (lien envoyé par email)
 Requête : `POST /login/a2f`
 
-Query :
-- token : chaîne de caractères représentant un JWT de vérification de connexion
+Body (châine de caractères) :
+- token de vérification de connexion
 
 Renvoie :
-- Code de status `200 Ok` et un JWT de connexion
+- Code de status `200 Ok` et un JWT de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré

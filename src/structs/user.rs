@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use time::OffsetDateTime;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct User {
     pub id: i64,
     pub username: String,

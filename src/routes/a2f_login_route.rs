@@ -1,25 +1,21 @@
-use axum::extract::{Query, State};
+use axum::extract::State;
 use hyper::Method;
-use serde::Deserialize;
+use hyper::StatusCode;
 use shuttle_runtime::tracing::warn;
+use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     utils::{app_error::AppError, token::decode_token},
     AppState,
 };
 
-#[derive(Deserialize, Default)]
-pub struct Token {
-    pub token: String,
-}
-
 pub async fn a2f_login_route(
     method: Method,
-    query: Option<Query<Token>>,
     State(app_state): State<AppState>,
-) -> Result<String, AppError> {
-    let Query(a2f_token) = query.unwrap_or_default();
-    let a2f_token = a2f_token.token;
+    cookies: Cookies,
+    body: String,
+) -> Result<StatusCode, AppError> {
+    let a2f_token = body;
     if a2f_token.is_empty() {
         warn!("{} /login/a2f Token missing", method);
         return Err(AppError::TokenMissing);
@@ -39,5 +35,7 @@ pub async fn a2f_login_route(
         &format!("{} /login/a2f", method),
     )?;
 
-    Ok(token)
+    cookies.add(Cookie::new("session", token));
+
+    Ok(StatusCode::OK)
 }
