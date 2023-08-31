@@ -1,6 +1,8 @@
 # api
 L'API officielle de ApyNext
 
+**English version in the README_en.md file**
+
 # Sommaire
 - [Configuration](#configuration)
 - [Lancer l'API](#lancer-lapi)
@@ -9,7 +11,7 @@ L'API officielle de ApyNext
         - [Créer un compte](#créer-un-compte)
         - [Vérifier l'email (lien envoyé par email)](#vérifier-lemail-lien-envoyé-par-email)
         - [Se connecter](#se-connecter)
-        - [Vérifier la connexion (lien envoyé par email)](#vérifier-la-connexion-lien-envoyé-par-email)
+        - [A2F (lien envoyé par email)](#a2f-lien-envoyé-par-email)
 
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser la Dockerfile de ce projet :
@@ -20,17 +22,17 @@ docker build -t postgres . && docker run -e POSTGRES_PASSWORD="<mot de passe>" -
 ```
 - Installez la CLI de Shuttle, plus d'infos [ici](https://docs.shuttle.rs/introduction/installation).
 - Et la CLI de SQLx, plus d'infos [ici](https://docs.rs/crate/sqlx-cli/latest).
-- Renommez (ou copiez) les fichiers Secrets.toml.example en Secrets.toml et renseignez les informations manquantes
+- Renommez (ou copiez) le fichier Secrets.toml.example en Secrets.toml et renseignez les informations manquantes
 
 # Lancer l'API
-Pour lancer l'API localement, il suffit d'exécuter les commandes
+Exécutez tout d'abord ces deux commandes :
 ```bash
 cargo sqlx migrate run --database-url <l'URL de la BDD>
 ```
 ```bash
 cargo sqlx prepare --database-url <l'URL de la BDD>
 ```
-et
+Puis pour lancer l'API localement, il suffit d'exécuter la commandes
 ```bash
 cargo shuttle run
 ```
@@ -61,7 +63,7 @@ Body (châine de caractères) :
 - token de confirmation d'email
 
 Renvoie :
-- Code de status `200 Ok` et un JWT de connexion stocké comme cookie
+- Code de status `200 Ok` et un token de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
 
@@ -78,12 +80,12 @@ Renvoie :
 - Code de status `200 Ok`
 - Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
 
-### Vérifier la connexion (lien envoyé par email)
+### A2F (lien envoyé par email)
 Requête : `POST /login/a2f`
 
 Body (châine de caractères) :
 - token de vérification de connexion
 
 Renvoie :
-- Code de status `200 Ok` et un JWT de connexion stocké comme cookie
+- Code de status `200 Ok` et un token de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
