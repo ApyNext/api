@@ -1,6 +1,16 @@
 # api
 L'API officielle de ApyNext
 
+# Sommaire
+- [Configuration](#configuration)
+- [Lancer l'API](#lancer-lapi)
+- [Documentation](#documentation)
+    - [Gestion de compte](#gestion-de-compte)
+        - [Créer un compte](#créer-un-compte)
+        - [Vérifier l'email (lien envoyé par email)](#vérifier-lemail-lien-envoyé-par-email)
+        - [Se connecter](#se-connecter)
+        - [Vérifier la connexion (lien envoyé par email)](#vérifier-la-connexion-lien-envoyé-par-email)
+
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser la Dockerfile de ce projet :
 1) Installez Docker sur votre machine (plus d'informations [ici](https://www.docker.com/)).
@@ -52,5 +62,28 @@ Query :
 
 Renvoie :
 - Code de status `200 Ok` et un JWT de connexion
-- Code de status `403 Forbidden` et le message d'erreur quand le lien est manquant, invalide ou expiré
+- Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
+
+### Se connecter
+Requête : `POST /login`
+
+Body (JSON) :
+- username_or_email => chaîne de caractères représentant soit :
+    - un pseudo entre 5 et 12 caractères compris, commençant par une lettre et ne pouvant contenir que des lettres, des nombres et des underscores
+    - ou un email valide
+- password => mot de passe (au moins 8 caractères)
+
+Renvoie :
+- Code de status `200 Ok`
+- Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
+
+### Vérifier la connexion (lien envoyé par email)
+Requête : `POST /login/a2f`
+
+Query :
+- token : chaîne de caractères représentant un JWT de vérification de connexion
+
+Renvoie :
+- Code de status `200 Ok` et un JWT de connexion
+- Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré

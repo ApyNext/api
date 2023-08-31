@@ -101,7 +101,7 @@ pub async fn login_route(
 
     send_html_message(
         app_state.smtp_client,
-        "Confirm connection",
+        "Vérifier la connexion",
         &format!("<p>Heureux de te revoir <b>@{}</b> ! Quelqu'un a tenté de se connecter à votre compte, si vous êtes à l’origine de cette action, cliquez <a href='{}/login/a2f?token={}'>ici</a> pour vous connecter, sinon vous pouvez ignorer cet email.</p>", user.username, FRONT_URL, a2f_token),
         email,
         &format!("{} /login", method),
