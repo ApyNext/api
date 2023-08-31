@@ -71,7 +71,7 @@ Requête : `POST /login`
 Body (JSON) :
 - username_or_email => chaîne de caractères représentant soit :
     - un pseudo entre 5 et 12 caractères compris, commençant par une lettre et ne pouvant contenir que des lettres, des nombres et des underscores
-    - ou un email valide
+    - un email valide
 - password => mot de passe (au moins 8 caractères)
 
 Renvoie :
