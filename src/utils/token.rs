@@ -4,9 +4,8 @@ use libaes::Cipher;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use crate::utils::register::AppError;
+use crate::utils::app_error::AppError;
 use shuttle_runtime::tracing::warn;
-use axum::response::IntoResponse;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -14,7 +13,7 @@ struct Claims {
     sub: String,
 }
 
-pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> Result<String, String> {
+pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> String {
     //Get expiration timestamp
     let exp = (Utc::now() + exp_in).timestamp() as usize;
 
@@ -33,10 +32,10 @@ pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> Result<St
     //Encode data with nonce at the beggining
     let encrypted_encoded =
         general_purpose::STANDARD.encode([&nonce, encrypted.as_slice()].concat());
-    Ok(encrypted_encoded)
+    encrypted_encoded
 }
 
-pub fn decode_token(jwt: &str, cipher: &Cipher, header: &str) -> Result<String, impl IntoResponse> {
+pub fn decode_token(jwt: &str, cipher: &Cipher, header: &str) -> Result<String, AppError> {
     //Decode datas
     let encyrpted_decoded = match general_purpose::STANDARD.decode(jwt) {
         Ok(result) => result,
