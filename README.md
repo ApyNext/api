@@ -53,7 +53,10 @@ Body (JSON) :
 
 Renvoie :
 - Code de status `200 Ok`
+- Code de status `400 Bad request` quand le body n'est pas un JSON valide
 - Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
+- Code de status `415 Unsupported Media Type` quand le header `Content-Type: application/json` est manquant
+- Code de status `422 Unprocessable Entity` lorsqu'un field JSON est manquant
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
 
 ### Vérifier l'email (lien envoyé par email)
@@ -78,7 +81,10 @@ Body (JSON) :
 
 Renvoie :
 - Code de status `200 Ok`
+- Code de status `400 Bad request` quand le body n'est pas un JSON valide
 - Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
+- Code de status `415 Unsupported Media Type` quand le header `Content-Type: application/json` est manquant
+- Code de status `422 Unprocessable Entity` lorsqu'un field JSON est manquant
 
 ### A2F (lien envoyé par email)
 Requête : `POST /login/a2f`

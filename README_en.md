@@ -53,7 +53,10 @@ Body (JSON) :
 
 Returns :
 - Status code `200 Ok`
-- Status code `403 Forbidden`and the error message when a client error occurs
+- Status code `400 Bad request` when the body isn't a valid JSON
+- Status code `403 Forbidden` and the error message when a client error occurs
+- Status code `415 Unsupported Media Type` when the header `Content-Type: application/json` is missing
+- Status code `422 Unprocessable Entity` when a JSON field is missing
 - Status code `500 Internal Server Error` when a server error occurs
 
 ### Email confirmation (link sent by email)
@@ -78,7 +81,10 @@ Body (JSON) :
 
 Returns :
 - Status code `200 Ok`
+- Status code `400 Bad request` when the body isn't a valid JSON
 - Status code `403 Forbidden` and the error message when a client error occurs
+- Status code `415 Unsupported Media Type` when the header `Content-Type: application/json` is missing
+- Status code `422 Unprocessable Entity` when a JSON field is missing
 
 ### A2F (link sent by email)
 Request : `POST /login/a2f`
