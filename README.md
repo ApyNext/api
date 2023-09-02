@@ -48,7 +48,6 @@ Body (JSON) :
 - email => chaîne de caractères d'un email valide
 - password => chaîne de caractères contenant au moins 8 caractères
 - birthdate => timestamp Unix entre 1900 et aujourd'hui
-- biography => chaîne de caractères d'une longueur maximale de 300 caractères
 - is_male (facultatif pour des raisons de confidentialité) => booléen (true pour un homme et false pour une femme)
 
 Renvoie :

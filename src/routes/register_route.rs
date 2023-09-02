@@ -105,7 +105,7 @@ pub async fn register_route(
         &app_state.cipher,
     );
 
-    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, biography, is_male, token) VALUES ($1, $2, $3, $4, $5, $6, $7);", register_user.username, email_confirm_token, password, birthdate, register_user.biography, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
+    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
         Ok(_) => (),
         Err(e) => {
             warn!("{} /register {}", method, e);

@@ -86,10 +86,6 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
         return Err(AppError::PasswordTooShort);
     }
 
-    if user.biography.len() >= 300 {
-        return Err(AppError::BiographyTooLong);
-    }
-
     Ok(())
 }
 

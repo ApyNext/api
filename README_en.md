@@ -48,7 +48,6 @@ Body (JSON) :
 - email => string of a valid email
 - password => string containing at least 8 characters
 - birthdate => Unix timestamp since 1900 to today
-- biography => string containing 300 characters at most
 - is_male (optional for privacy reasons) => boolean (true for a man and false for a woman)
 
 Returns :
