@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.20"
+axum = { version = "0.6.20", features = ["ws"] }
 base64 = "0.21.2"
 chrono = "0.4.26"
 email_address = "0.2.4"

@@ -14,11 +14,12 @@ L'API officielle de ApyNext
         - [A2F (lien envoyé par email)](#a2f-lien-envoyé-par-email)
 
 # Configuration
-- Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser la Dockerfile de ce projet :
+- Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser le fichier docker-compose.yml de ce projet :
+
 1) Installez Docker sur votre machine (plus d'informations [ici](https://www.docker.com/)).
 2) Exécutez cette commande en remplaçant `<mot de passe>` par le mot de passe que vous souhaitez pour la BDD :
 ```bash
-docker build -t postgres . && docker run -e POSTGRES_PASSWORD="<mot de passe>" -p 5432:5432 postgres
+POSTGRES_PASSWORD=`<mot de passe>` docker compose up -d
 ```
 - Installez la CLI de Shuttle, plus d'infos [ici](https://docs.shuttle.rs/introduction/installation).
 - Et la CLI de SQLx, plus d'infos [ici](https://docs.rs/crate/sqlx-cli/latest).

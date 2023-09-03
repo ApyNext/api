@@ -6,8 +6,12 @@ mod utils;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::{middleware, routing::post};
+use axum::{
+    middleware,
+    routing::{get, post},
+};
 use libaes::Cipher;
+use routes::ws::ws_route;
 use shuttle_runtime::tracing::{info, warn};
 use shuttle_runtime::Service;
 
@@ -84,6 +88,7 @@ async fn axum(
         .route("/register/email_confirm", post(email_confirm_route))
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
+        .route("/ws", get(ws_route))
         .layer(cors)
         .layer(middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
