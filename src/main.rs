@@ -1,4 +1,4 @@
-mod middlewares;
+mod middleware;
 mod routes;
 mod structs;
 mod utils;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::{
-    middleware,
+    middleware as axum_middleware,
     routing::{get, post},
 };
 use libaes::Cipher;
@@ -19,7 +19,7 @@ use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_ex
 use hyper::header::HeaderValue;
 use hyper::http::Method;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
-use middlewares::logger_middleware::logger_middleware;
+use middleware::logger_middleware::logger_middleware;
 use routes::a2f_login_route::a2f_login_route;
 use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
@@ -90,7 +90,7 @@ async fn axum(
         .route("/login/a2f", post(a2f_login_route))
         .route("/ws", get(ws_route))
         .layer(cors)
-        .layer(middleware::from_fn(logger_middleware))
+        .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
         .with_state(app_state);
 

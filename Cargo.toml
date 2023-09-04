@@ -3,6 +3,9 @@ name = "apynext"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+debug = true
+
 [dependencies]
 axum = { version = "0.6.20", features = ["ws"] }
 base64 = "0.21.2"
