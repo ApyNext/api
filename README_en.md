@@ -16,7 +16,8 @@ The official API of ApyNext
 # Configuration
 - Configure Postgres on your computer, you can either install it directly (more infos [here](https://www.postgresql.org/docs/15/install-short.html)) - don't forget to set a password for the user postgres - or use the project's docker-compose.yml file :
 1) Install Docker (more infos [here](https://www.docker.com/)).
-2) Run this command by replacing `<password>` by the password you want for the DB :
+2) Install also Docker compose (more infos [here](https://docs.docker.com/compose/install/)).
+3) Run this command by replacing `<password>` by the password you want for the DB :
 ```bash
 POSTGRES_PASSWORD="<password>" docker compose up -d
 ```
