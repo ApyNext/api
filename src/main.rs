@@ -3,17 +3,20 @@ mod routes;
 mod structs;
 mod utils;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-use axum::Router;
+use axum::extract::ws::{Message, WebSocket};
 use axum::{
     middleware as axum_middleware,
     routing::{get, post},
 };
+use axum::{Extension, Router};
 use libaes::Cipher;
 use routes::ws::ws_route;
 use shuttle_runtime::tracing::{info, warn};
 use shuttle_runtime::Service;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use hyper::header::HeaderValue;
@@ -28,6 +31,9 @@ use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
+
+type Users = Arc<RwLock<HashMap<usize, UnboundedSender<Message>>>>;
+static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 #[derive(Clone)]
 pub struct AppState {
@@ -92,6 +98,7 @@ async fn axum(
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
+        .layer(Extension(Users::default()))
         .with_state(app_state);
 
     Ok(CustomService { pool, router })
