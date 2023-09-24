@@ -27,6 +27,7 @@ use routes::a2f_login_route::a2f_login_route;
 use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
 use routes::register_route::register_route;
+use serde::{Deserialize, Serialize};
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
@@ -34,6 +35,13 @@ use tower_http::cors::CorsLayer;
 
 type Users = Arc<RwLock<HashMap<usize, UnboundedSender<Message>>>>;
 static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+#[derive(Serialize, Deserialize)]
+pub struct Msg {
+    name: String,
+    uid: Option<usize>,
+    message: String,
+}
 
 #[derive(Clone)]
 pub struct AppState {
