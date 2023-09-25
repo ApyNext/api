@@ -10,6 +10,7 @@ use axum::{
 };
 use futures::StreamExt;
 use futures_util::SinkExt;
+use shuttle_runtime::tracing::info;
 use tokio::sync::mpsc;
 
 use crate::{Msg, Users, NEXT_USER_ID};
@@ -26,6 +27,8 @@ pub async fn handle_socket(socket: WebSocket, users: Users) {
 
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
 
+    users.write().unwrap().insert(id, tx);
+
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             sender.send(msg).await.expect("Error while sending message");
@@ -34,11 +37,12 @@ pub async fn handle_socket(socket: WebSocket, users: Users) {
     });
     while let Some(Ok(result)) = receiver.next().await {
         println!("{:?}", result);
-        //TODO change
         if let Ok(result) = enrich_result(result, id) {
             broadcast_msg(result, &users).await;
         }
     }
+
+    disconnect(id, &users).await;
 }
 
 pub async fn broadcast_msg(msg: Message, users: &Users) {
@@ -60,4 +64,10 @@ pub fn enrich_result(result: Message, id: usize) -> Result<Message, serde_json::
         }
         _ => Ok(result),
     }
+}
+
+pub async fn disconnect(id: usize, users: &Users) {
+    info!("Disconnecting {}", id);
+    users.write().unwrap().remove(&id);
+    info!("User {} disconnected", id);
 }
