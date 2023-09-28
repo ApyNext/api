@@ -23,7 +23,7 @@ sha2 = "0.10.7"
 shuttle-axum = "0.27.0"
 shuttle-runtime = "0.27.0"
 shuttle-secrets = "0.27.0"
-shuttle-shared-db = { version = "0.25.0", features = ["postgres-rustls"] }
+shuttle-shared-db = { version = "0.27.0", features = ["postgres-rustls"] }
 sqlx = { version = "0.7.1", features = [
     "runtime-tokio-rustls",
     "postgres",
