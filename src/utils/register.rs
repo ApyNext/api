@@ -7,7 +7,7 @@ use lettre::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
-use shuttle_runtime::tracing::warn;
+use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInfos {

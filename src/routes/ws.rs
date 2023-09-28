@@ -10,8 +10,8 @@ use axum::{
 };
 use futures::StreamExt;
 use futures_util::SinkExt;
-use shuttle_runtime::tracing::info;
 use tokio::sync::mpsc;
+use tracing::info;
 
 use crate::{Msg, Users, NEXT_USER_ID};
 

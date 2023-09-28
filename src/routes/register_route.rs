@@ -3,8 +3,8 @@ use chrono::Duration;
 use hyper::Method;
 use hyper::StatusCode;
 use lettre::Address;
-use shuttle_runtime::tracing::warn;
 use time::OffsetDateTime;
+use tracing::warn;
 
 use crate::utils::app_error::AppError;
 use crate::utils::register::check_register_infos;

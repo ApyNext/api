@@ -1,6 +1,6 @@
 use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use hyper::Method;
-use shuttle_runtime::tracing::info;
+use tracing::info;
 
 pub async fn logger_middleware(
     method: Method,

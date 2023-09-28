@@ -5,7 +5,7 @@ use libaes::Cipher;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use shuttle_runtime::tracing::warn;
+use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {

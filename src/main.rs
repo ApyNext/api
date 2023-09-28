@@ -14,9 +14,9 @@ use axum::{
 use axum::{Extension, Router};
 use libaes::Cipher;
 use routes::ws::ws_route;
-use shuttle_runtime::tracing::{info, warn};
 use shuttle_runtime::Service;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::{info, warn};
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use hyper::header::HeaderValue;

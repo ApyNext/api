@@ -12,7 +12,7 @@ use chrono::Duration;
 use hyper::Method;
 use hyper::StatusCode;
 use lettre::Address;
-use shuttle_runtime::tracing::warn;
+use tracing::warn;
 
 struct UserForLoginA2F {
     username: String,

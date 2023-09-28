@@ -1,7 +1,7 @@
 use std::{thread, time::Duration};
 
-use shuttle_runtime::tracing::info;
 use sqlx::PgPool;
+use tracing::info;
 
 struct DeleteNotActivatedExpiredAccountsResult {
     total: i64,
