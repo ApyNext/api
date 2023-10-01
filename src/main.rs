@@ -26,6 +26,7 @@ use middleware::logger_middleware::logger_middleware;
 use routes::a2f_login_route::a2f_login_route;
 use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
+use routes::ok_route::ok_route;
 use routes::register_route::register_route;
 use serde::{Deserialize, Serialize};
 use shuttle_secrets::SecretStore;
@@ -98,6 +99,7 @@ async fn axum(
         .allow_origin(FRONT_URL.parse::<HeaderValue>().unwrap());
 
     let router = Router::new()
+        .route("/", get(ok_route))
         .route("/register", post(register_route))
         .route("/register/email_confirm", post(email_confirm_route))
         .route("/login", post(login_route))
