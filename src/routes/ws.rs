@@ -39,6 +39,11 @@ pub async fn handle_socket(socket: WebSocket, users: Users) {
         println!("{:?}", result);
         if let Ok(result) = enrich_result(result, id) {
             broadcast_msg(result, &users).await;
+            broadcast_msg(
+                Message::Text(format!("{}", users.read().unwrap().len())),
+                &users,
+            )
+            .await;
         }
     }
 
