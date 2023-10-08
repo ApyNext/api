@@ -1,25 +1,19 @@
-use std::sync::atomic::Ordering;
+use std::{convert::Infallible, sync::atomic::Ordering};
 
 use axum::{
-    extract::{
-        ws::{Message, WebSocket},
-        WebSocketUpgrade,
-    },
-    response::Response,
+    response::{sse::Event, Response, Sse},
     Extension,
 };
 use futures::StreamExt;
-use futures_util::SinkExt;
+use futures_util::{SinkExt, Stream};
 use tokio::sync::mpsc;
 use tracing::info;
 
 use crate::{Msg, Users, NEXT_USER_ID};
 
-pub async fn ws_route(ws: WebSocketUpgrade, Extension(users): Extension<Users>) -> Response {
-    ws.on_upgrade(|websocket| handle_socket(websocket, users))
-}
-
-pub async fn handle_socket(socket: WebSocket, users: Users) {
+pub async fn sse_route(
+    Extension(users): Extension<Users>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
@@ -35,17 +29,6 @@ pub async fn handle_socket(socket: WebSocket, users: Users) {
         }
         sender.close().await.unwrap();
     });
-    while let Some(Ok(result)) = receiver.next().await {
-        println!("{:?}", result);
-        if let Ok(result) = enrich_result(result, id) {
-            broadcast_msg(result, &users).await;
-            broadcast_msg(
-                Message::Text(format!("{}", users.read().unwrap().len())),
-                &users,
-            )
-            .await;
-        }
-    }
 
     disconnect(id, &users).await;
 }

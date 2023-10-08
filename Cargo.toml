@@ -7,7 +7,7 @@ edition = "2021"
 debug = true
 
 [dependencies]
-axum = { version = "0.6.20", features = ["ws"] }
+axum = { version = "0.6.20", features = ["tokio"] }
 base64 = "0.21.2"
 chrono = "0.4.26"
 email_address = "0.2.4"
