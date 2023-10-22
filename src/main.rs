@@ -13,7 +13,7 @@ use axum::{
 };
 use axum::{Extension, Router};
 use libaes::Cipher;
-use routes::ws::ws_route;
+use routes::sse::sse_route;
 use shuttle_runtime::Service;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
@@ -104,7 +104,7 @@ async fn axum(
         .route("/register/email_confirm", post(email_confirm_route))
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
-        .route("/ws", get(ws_route))
+        .route("/sse", get(sse_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
