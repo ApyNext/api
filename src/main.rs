@@ -3,19 +3,19 @@ mod routes;
 mod structs;
 mod utils;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use axum::extract::ws::{Message, WebSocket};
+use axum::response::sse::Event;
 use axum::{
     middleware as axum_middleware,
     routing::{get, post},
 };
 use axum::{Extension, Router};
+use futures_channel::mpsc::UnboundedSender;
 use libaes::Cipher;
 use routes::sse::sse_route;
 use shuttle_runtime::Service;
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
@@ -34,7 +34,7 @@ use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type Users = Arc<RwLock<HashMap<usize, UnboundedSender<Message>>>>;
+type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<Event>>>>>>;
 static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 #[derive(Serialize, Deserialize)]
@@ -56,7 +56,20 @@ pub struct CustomService {
     pool: PgPool,
 }
 
+pub struct SubscribedUser {
+    id: usize,
+    subscribed: Subscribers,
+}
+
+pub struct UserConnection {
+    sender: Arc<RwLock<UnboundedSender<Event>>>,
+    following: Following,
+}
+
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";
+type Subscribers = Arc<RwLock<HashSet<Arc<UserConnection>>>>;
+type Following = Arc<RwLock<HashSet<usize>>>;
+type SubscribedUsers = Arc<RwLock<HashMap<usize, Arc<RwLock<SubscribedUser>>>>>;
 
 #[shuttle_runtime::main]
 async fn axum(
@@ -109,6 +122,7 @@ async fn axum(
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
         .layer(Extension(Users::default()))
+        .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);
 
     Ok(CustomService { pool, router })

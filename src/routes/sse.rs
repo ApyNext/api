@@ -1,60 +1,59 @@
-use std::{convert::Infallible, sync::atomic::Ordering};
+use std::sync::{atomic::Ordering, Arc, RwLock};
 
 use axum::{
-    response::{sse::Event, Response, Sse},
+    response::{
+        sse::{Event, KeepAlive},
+        Sse,
+    },
     Extension,
 };
-use futures::StreamExt;
-use futures_util::{SinkExt, Stream};
-use tokio::sync::mpsc;
+
+use futures_channel::mpsc;
+use futures_util::{Stream, StreamExt};
+use serde::Serialize;
 use tracing::info;
 
-use crate::{Msg, Users, NEXT_USER_ID};
+use crate::{SubscribedUsers, Users, NEXT_USER_ID};
+
+#[derive(Serialize)]
+pub struct Message {
+    author: i64,
+    content: String,
+}
+
+//pub fn add_subscription(id: usize, )
 
 pub async fn sse_route(
     Extension(users): Extension<Users>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    Extension(subscribed_users): Extension<SubscribedUsers>,
+) -> Sse<impl Stream<Item = Event>> {
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (mut sender, mut receiver) = socket.split();
+    let (sender, receiver) = mpsc::unbounded::<Event>();
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+    let sender = Arc::new(RwLock::new(sender));
 
-    users.write().unwrap().insert(id, tx);
+    let stream = receiver.map(|result| result);
 
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            sender.send(msg).await.expect("Error while sending message");
-        }
-        sender.close().await.unwrap();
-    });
+    users.write().unwrap().insert(id, sender);
 
-    disconnect(id, &users).await;
+    //TODO use that when disconnected
+    disconnect(id, users).await;
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-pub async fn broadcast_msg(msg: Message, users: &Users) {
-    if let Message::Text(msg) = msg {
-        for (&_uid, tx) in users.read().unwrap().iter() {
-            tx.send(Message::Text(msg.clone()))
-                .expect("Failed to send message");
-        }
+pub async fn broadcast_msg(msg: Message, users: Users) {
+    for (&_uid, tx) in users.read().unwrap().iter() {
+        let e = Event::default()
+            .json_data(serde_json::to_string(&msg).unwrap())
+            .unwrap();
+        tx.write().unwrap().send(e).expect("Failed to send message");
     }
 }
 
-pub fn enrich_result(result: Message, id: usize) -> Result<Message, serde_json::Error> {
-    match result {
-        Message::Text(msg) => {
-            let mut msg: Msg = serde_json::from_str(&msg)?;
-            msg.uid = Some(id);
-            let msg = serde_json::to_string(&msg)?;
-            Ok(Message::Text(msg))
-        }
-        _ => Ok(result),
-    }
-}
-
-pub async fn disconnect(id: usize, users: &Users) {
+pub async fn disconnect(id: usize, users: Users) {
     info!("Disconnecting {}", id);
     users.write().unwrap().remove(&id);
     info!("User {} disconnected", id);
