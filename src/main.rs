@@ -12,10 +12,10 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
-use futures_channel::mpsc::UnboundedSender;
 use libaes::Cipher;
-use routes::sse::sse_route;
+use routes::sse::{sse_route, SseEvent};
 use shuttle_runtime::Service;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
@@ -34,7 +34,7 @@ use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<Event>>>>>>;
+type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<SseEvent>>>>>>;
 static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 #[derive(Serialize, Deserialize)]
@@ -62,7 +62,7 @@ pub struct SubscribedUser {
 }
 
 pub struct UserConnection {
-    sender: Arc<RwLock<UnboundedSender<Event>>>,
+    sender: Arc<RwLock<UnboundedSender<SseEvent>>>,
     following: Following,
 }
 

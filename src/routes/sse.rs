@@ -1,4 +1,7 @@
-use std::sync::{atomic::Ordering, Arc, RwLock};
+use std::{
+    convert::Infallible,
+    sync::{atomic::Ordering, Arc, RwLock},
+};
 
 use axum::{
     response::{
@@ -8,9 +11,9 @@ use axum::{
     Extension,
 };
 
-use futures_channel::mpsc;
-use futures_util::{Stream, StreamExt};
 use serde::Serialize;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio_stream::{Stream, StreamExt};
 use tracing::info;
 
 use crate::{SubscribedUsers, Users, NEXT_USER_ID};
@@ -21,20 +24,31 @@ pub struct Message {
     content: String,
 }
 
+#[derive(Serialize)]
+pub struct SseEvent {
+    name: String,
+    content: String,
+}
+
 //pub fn add_subscription(id: usize, )
 
 pub async fn sse_route(
     Extension(users): Extension<Users>,
     Extension(subscribed_users): Extension<SubscribedUsers>,
-) -> Sse<impl Stream<Item = Event>> {
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, receiver) = mpsc::unbounded::<Event>();
+    let (sender, receiver): (UnboundedSender<SseEvent>, UnboundedReceiver<SseEvent>) =
+        mpsc::unbounded_channel::<SseEvent>();
 
     let sender = Arc::new(RwLock::new(sender));
 
-    let stream = receiver.map(|result| result);
+    let stream = receiver.map(|result| {
+        Event::default()
+            .json_data(serde_json::to_string(&result).unwrap())
+            .unwrap()
+    });
 
     users.write().unwrap().insert(id, sender);
 
@@ -46,9 +60,10 @@ pub async fn sse_route(
 
 pub async fn broadcast_msg(msg: Message, users: Users) {
     for (&_uid, tx) in users.read().unwrap().iter() {
-        let e = Event::default()
-            .json_data(serde_json::to_string(&msg).unwrap())
-            .unwrap();
+        let e = SseEvent {
+            name: String::from("post_notification"),
+            content: serde_json::to_string(&msg).unwrap(),
+        };
         tx.write().unwrap().send(e).expect("Failed to send message");
     }
 }
