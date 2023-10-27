@@ -1,6 +1,6 @@
 use std::{
     convert::Infallible,
-    sync::{atomic::Ordering, Arc, RwLock},
+    sync::{atomic::Ordering, Arc},
 };
 
 use axum::{
@@ -11,9 +11,9 @@ use axum::{
     Extension,
 };
 
+use futures_util::Stream;
 use serde::Serialize;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio_stream::{Stream, StreamExt};
+use tokio::sync::RwLock;
 use tracing::info;
 
 use crate::{SubscribedUsers, Users, NEXT_USER_ID};
@@ -39,37 +39,37 @@ pub async fn sse_route(
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, receiver): (UnboundedSender<SseEvent>, UnboundedReceiver<SseEvent>) =
-        mpsc::unbounded_channel::<SseEvent>();
+    let (sender, mut receiver) = futures_channel::mpsc::unbounded::<Event>();
 
     let sender = Arc::new(RwLock::new(sender));
 
-    let stream = receiver.map(|result| {
+    /* let stream = receiver.map(|result| {
         Event::default()
             .json_data(serde_json::to_string(&result).unwrap())
             .unwrap()
-    });
+    }); */
 
-    users.write().unwrap().insert(id, sender);
+    users.write().await.insert(id, sender);
 
     //TODO use that when disconnected
     disconnect(id, users).await;
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Sse::new(receiver).keep_alive(KeepAlive::default())
 }
 
 pub async fn broadcast_msg(msg: Message, users: Users) {
-    for (&_uid, tx) in users.read().unwrap().iter() {
+    for (_, tx) in users.read().await.iter() {
         let e = SseEvent {
             name: String::from("post_notification"),
             content: serde_json::to_string(&msg).unwrap(),
         };
-        tx.write().unwrap().send(e).expect("Failed to send message");
+        let e = Event::default().json_data(serde_json::to_string(&e));
+        tx.write().await.send(e).expect("Failed to send message");
     }
 }
 
 pub async fn disconnect(id: usize, users: Users) {
     info!("Disconnecting {}", id);
-    users.write().unwrap().remove(&id);
+    users.write().await.remove(&id);
     info!("User {} disconnected", id);
 }

@@ -4,7 +4,7 @@ mod structs;
 mod utils;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use axum::response::sse::Event;
 use axum::{
@@ -15,7 +15,8 @@ use axum::{Extension, Router};
 use libaes::Cipher;
 use routes::sse::{sse_route, SseEvent};
 use shuttle_runtime::Service;
-use tokio::sync::mpsc::UnboundedSender;
+use futures_channel::mpsc::UnboundedSender;
+use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
@@ -34,7 +35,7 @@ use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<SseEvent>>>>>>;
+type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<Event>>>>>>;
 static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 #[derive(Serialize, Deserialize)]
@@ -62,7 +63,7 @@ pub struct SubscribedUser {
 }
 
 pub struct UserConnection {
-    sender: Arc<RwLock<UnboundedSender<SseEvent>>>,
+    sender: Arc<RwLock<UnboundedSender<Event>>>,
     following: Following,
 }
 
