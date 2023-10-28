@@ -39,7 +39,7 @@ pub async fn sse_route(
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, mut receiver) = futures_channel::mpsc::unbounded::<Event>();
+    let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Event>();
 
     let sender = Arc::new(RwLock::new(sender));
 
@@ -63,7 +63,7 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
             name: String::from("post_notification"),
             content: serde_json::to_string(&msg).unwrap(),
         };
-        let e = Event::default().json_data(serde_json::to_string(&e));
+        let e = Event::default().json_data(&e).unwrap();
         tx.write().await.send(e).expect("Failed to send message");
     }
 }

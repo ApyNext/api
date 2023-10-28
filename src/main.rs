@@ -15,7 +15,7 @@ use axum::{Extension, Router};
 use libaes::Cipher;
 use routes::sse::{sse_route, SseEvent};
 use shuttle_runtime::Service;
-use futures_channel::mpsc::UnboundedSender;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
