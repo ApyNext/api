@@ -35,7 +35,7 @@ use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<Event>>>>>>;
+type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<SseEvent>>>>>>;
 static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 #[derive(Serialize, Deserialize)]
