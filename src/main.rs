@@ -4,9 +4,10 @@ mod structs;
 mod utils;
 
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-use axum::response::sse::Event;
 use axum::{
     middleware as axum_middleware,
     routing::{get, post},
@@ -29,21 +30,14 @@ use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
 use routes::ok_route::ok_route;
 use routes::register_route::register_route;
-use serde::{Deserialize, Serialize};
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type Users = Arc<RwLock<HashMap<usize, Arc<RwLock<UnboundedSender<SseEvent>>>>>>;
-static NEXT_USER_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
-
-#[derive(Serialize, Deserialize)]
-pub struct Msg {
-    name: String,
-    uid: Option<usize>,
-    message: String,
-}
+type UserConnection = Arc<RwLock<UnboundedSender<SseEvent>>>;
+type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
+static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Clone)]
 pub struct AppState {
@@ -59,16 +53,32 @@ pub struct CustomService {
 
 pub struct SubscribedUser {
     id: usize,
-    subscribed: Subscribers,
+    subscribers: Subscribers,
 }
 
-pub struct UserConnection {
-    sender: Arc<RwLock<UnboundedSender<Event>>>,
+pub struct User {
+    sender: UserConnection,
     following: Following,
 }
 
+impl Eq for User {
+
+}
+
+impl PartialEq for User {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.following, &other.following)
+    }
+}
+
+impl Hash for User {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.following).hash(state);
+    }
+}
+
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";
-type Subscribers = Arc<RwLock<HashSet<Arc<UserConnection>>>>;
+type Subscribers = Arc<RwLock<HashSet<User>>>;
 type Following = Arc<RwLock<HashSet<usize>>>;
 type SubscribedUsers = Arc<RwLock<HashMap<usize, Arc<RwLock<SubscribedUser>>>>>;
 

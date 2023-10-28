@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     convert::Infallible,
     sync::{atomic::Ordering, Arc},
 };
@@ -13,11 +14,11 @@ use axum::{
 
 use futures_util::Stream;
 use serde::Serialize;
-use tokio::sync::{RwLock, mpsc::UnboundedReceiver};
+use tokio::sync::RwLock;
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tracing::info;
 
-use crate::{SubscribedUsers, Users, NEXT_USER_ID};
+use crate::{Following, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID};
 
 #[derive(Serialize)]
 pub struct Message {
@@ -31,7 +32,37 @@ pub struct SseEvent {
     content: String,
 }
 
-//pub fn add_subscription(id: usize, )
+pub async fn add_subscription(id: usize, subscriber: Arc<User>, subscribed_users: SubscribedUsers) {
+    if subscribed_users.read().await.contains_key(&id) {
+        let u = Arc::new(RwLock::new(SubscribedUser {
+            id,
+            subscribers: Arc::new(RwLock::new(HashSet::from([subscriber]))),
+        }));
+        subscribed_users.write().await.insert(id, u);
+    } else {
+        let u = subscribed_users.read().await.get(&id).unwrap();
+        let reader = u.read().await;
+        reader.subscribers.write().await.insert(subscriber);
+    }
+}
+
+pub async fn remove_subscription(
+    id: usize,
+    subscriber: Arc<User>,
+    subscribed_users: SubscribedUsers,
+) {
+    if !subscribed_users.read().await.contains_key(&id) {
+        return;
+    }
+
+    let reader = subscribed_users.read().await;
+    let u = reader.get(&id).unwrap();
+    let reader = u.read().await;
+    reader.subscribers.write().await.remove(subscriber.as_ref());
+    if reader.subscribers.read().await.len() == 0 {
+        subscribed_users.write().await.remove(&id);
+    }
+}
 
 pub async fn sse_route(
     Extension(users): Extension<Users>,
@@ -40,24 +71,33 @@ pub async fn sse_route(
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<SseEvent>();
+    let (sender, receiver) = tokio::sync::mpsc::unbounded_channel::<SseEvent>();
 
     let sender = Arc::new(RwLock::new(sender));
 
     let stream = UnboundedReceiverStream::new(receiver);
 
-    let stream = stream.map(|result| {
-        Event::default()
-            .json_data(&result)
-            .unwrap()
-    });
+    let stream = stream.map(|result| Event::default().json_data(&result).unwrap());
 
-    users.write().await.insert(id, sender);
+    users.write().await.insert(id, sender.clone());
+
+    //TODO get following
+
+    let user = User {
+        sender,
+        following: Following::default(),
+    };
+
+    let user = Arc::new(user);
+
+    for id in user.following.read().await.iter() {
+        add_subscription(*id, user.clone(), subscribed_users.clone()).await;
+    }
 
     let stream = stream.map(Ok::<_, Infallible>);
 
     //TODO use that when disconnected
-    disconnect(id, users).await;
+    disconnect(id, user, users, subscribed_users).await;
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
@@ -72,8 +112,16 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
     }
 }
 
-pub async fn disconnect(id: usize, users: Users) {
+pub async fn disconnect(
+    id: usize,
+    user: Arc<User>,
+    users: Users,
+    subscribed_users: SubscribedUsers,
+) {
     info!("Disconnecting {}", id);
     users.write().await.remove(&id);
+    for id in user.following.read().await.iter() {
+        remove_subscription(*id, user.clone(), subscribed_users.clone()).await;
+    }
     info!("User {} disconnected", id);
 }
