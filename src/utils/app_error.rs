@@ -14,7 +14,7 @@ pub enum AppError {
     UsernameMustOnlyContainLettersDigitsAndUnderscores,
     InvalidEmail,
     PasswordTooShort,
-    BiographyTooLong,
+//TODO    BiographyTooLong,
     //Register route errors
     InvalidBirthdate,
     EmailAddressAlreadyUsed,
@@ -37,7 +37,7 @@ impl IntoResponse for AppError {
             AppError::UsernameMustOnlyContainLettersDigitsAndUnderscores => "Le nom d'utilisateur ne peut contenir que des lettres, des chiffres et des underscores.",
             AppError::InvalidEmail => "L'adresse email n'est pas valide.",
             AppError::PasswordTooShort => "Le mot de passe doit contenir au moins 8 caractères.",
-            AppError::BiographyTooLong => "La biographie doit contenir au maximum 300 caractères.",
+     //TODO       AppError::BiographyTooLong => "La biographie doit contenir au maximum 300 caractères.",
             AppError::InvalidBirthdate => "Date de naissance invalide",
             AppError::EmailAddressAlreadyUsed => "Adresse email déjà utilisée",
             AppError::UsernameAlreadyUsed => "Pseudo déjà utilisé",
@@ -54,7 +54,7 @@ impl IntoResponse for AppError {
             | AppError::UsernameMustOnlyContainLettersDigitsAndUnderscores
             | AppError::InvalidEmail
             | AppError::PasswordTooShort
-            | AppError::BiographyTooLong
+          //TODO  | AppError::BiographyTooLong
             | AppError::InvalidBirthdate
             | AppError::EmailAddressAlreadyUsed
             | AppError::EmailSendError

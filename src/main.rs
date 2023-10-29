@@ -36,7 +36,9 @@ use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
 type UserConnection = Arc<RwLock<UnboundedSender<SseEvent>>>;
+//TODO perhaps useless
 type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
+
 static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Clone)]
@@ -130,6 +132,7 @@ async fn axum(
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
+        //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);

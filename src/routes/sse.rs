@@ -12,7 +12,7 @@ use axum::{
     Extension,
 };
 
-use futures_util::Stream;
+use futures_util::{Stream, stream::FuturesUnordered};
 use serde::Serialize;
 use tokio::sync::{RwLock, mpsc::unbounded_channel};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
@@ -76,6 +76,8 @@ pub async fn sse_route(
 
     let sender = Arc::new(RwLock::new(sender));
 
+
+
     let stream = UnboundedReceiverStream::new(receiver);
 
     let stream = stream.map(|sse_event| Event::default().json_data(&sse_event).unwrap());
@@ -92,9 +94,22 @@ pub async fn sse_route(
 
     let user = Arc::new(user);
 
-    for id in user.following.read().await.iter() {
-        add_subscription(*id, user.clone(), subscribed_users.clone()).await;
+    let user_cloned = user.clone();
+
+    let reader = user_cloned.following.read().await;
+
+    let f = FuturesUnordered::new();
+    
+    for id in reader.iter() {
+        f.push({
+            let user = user.clone();
+            let subscribed_users = subscribed_users.clone();
+            async move {
+            add_subscription(*id, user.clone(), subscribed_users.clone());
+        }});
     }
+
+    f.collect::<Vec<()>>().await;
 
     let stream = stream.map(Ok::<_, Infallible>);
 
