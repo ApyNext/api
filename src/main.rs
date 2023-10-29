@@ -78,7 +78,7 @@ impl Hash for User {
 }
 
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";
-type Subscribers = Arc<RwLock<HashSet<User>>>;
+type Subscribers = Arc<RwLock<HashSet<Arc<User>>>>;
 type Following = Arc<RwLock<HashSet<usize>>>;
 type SubscribedUsers = Arc<RwLock<HashMap<usize, Arc<RwLock<SubscribedUser>>>>>;
 

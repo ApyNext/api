@@ -14,7 +14,7 @@ use axum::{
 
 use futures_util::Stream;
 use serde::Serialize;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, mpsc::unbounded_channel};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tracing::info;
 
@@ -40,7 +40,8 @@ pub async fn add_subscription(id: usize, subscriber: Arc<User>, subscribed_users
         }));
         subscribed_users.write().await.insert(id, u);
     } else {
-        let u = subscribed_users.read().await.get(&id).unwrap();
+        let reader = subscribed_users.read().await;
+        let u = reader.get(&id).unwrap();
         let reader = u.read().await;
         reader.subscribers.write().await.insert(subscriber);
     }
@@ -71,20 +72,20 @@ pub async fn sse_route(
     //Generate user id
     let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, receiver) = tokio::sync::mpsc::unbounded_channel::<SseEvent>();
+    let (sender, receiver) = unbounded_channel::<SseEvent>();
 
     let sender = Arc::new(RwLock::new(sender));
 
     let stream = UnboundedReceiverStream::new(receiver);
 
-    let stream = stream.map(|result| Event::default().json_data(&result).unwrap());
+    let stream = stream.map(|sse_event| Event::default().json_data(&sse_event).unwrap());
 
     users.write().await.insert(id, sender.clone());
 
     //TODO get following
 
     let user = User {
-        sender,
+        sender: sender.clone(),
         following: Following::default(),
     };
 
@@ -97,7 +98,10 @@ pub async fn sse_route(
     let stream = stream.map(Ok::<_, Infallible>);
 
     //TODO use that when disconnected
-    disconnect(id, user, users, subscribed_users).await;
+    tokio::spawn(async move {
+        sender.read().await.closed().await;
+        disconnect(id, user, users, subscribed_users).await;
+    });
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
