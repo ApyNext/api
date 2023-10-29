@@ -70,7 +70,7 @@ pub async fn sse_route(
     Extension(subscribed_users): Extension<SubscribedUsers>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     //Generate user id
-    let id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
+    let random_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
     let (sender, receiver) = unbounded_channel::<SseEvent>();
 
@@ -80,12 +80,13 @@ pub async fn sse_route(
 
     let stream = stream.map(|sse_event| Event::default().json_data(&sse_event).unwrap());
 
-    users.write().await.insert(id, sender.clone());
+    users.write().await.insert(random_id, sender.clone());
 
     //TODO get following
 
     let user = User {
         sender: sender.clone(),
+        //TODO replace by the people followed from the DB
         following: Following::default(),
     };
 
@@ -99,7 +100,7 @@ pub async fn sse_route(
 
     tokio::spawn(async move {
         sender.read().await.closed().await;
-        disconnect(id, user, users, subscribed_users).await;
+        disconnect(random_id, user, users, subscribed_users).await;
     });
 
     Sse::new(stream).keep_alive(KeepAlive::default())
