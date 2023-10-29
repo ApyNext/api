@@ -1,6 +1,8 @@
-use axum::response::Response;
+use axum::response::{Response, IntoResponse};
 
-pub async fn follow_user_route() -> String {
+use crate::utils::app_error::AppError;
+
+pub async fn follow_user_route() -> Result<Response, AppError> {
     //TODO
-    String::new()
+    Ok("".into_response())
 }

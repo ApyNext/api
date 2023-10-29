@@ -2,6 +2,7 @@ mod middleware;
 mod routes;
 mod structs;
 mod utils;
+mod extractors;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -13,6 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
+use extractors::auth_extractor::AuthUser;
 use libaes::Cipher;
 use routes::sse::{sse_route, SseEvent};
 use shuttle_runtime::Service;
@@ -135,6 +137,7 @@ async fn axum(
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
+        .layer(axum_middleware::from_extractor::<Option<AuthUser>>())
         .with_state(app_state);
 
     Ok(CustomService { pool, router })
