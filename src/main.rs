@@ -61,9 +61,7 @@ pub struct User {
     following: Following,
 }
 
-impl Eq for User {
-
-}
+impl Eq for User {}
 
 impl PartialEq for User {
     fn eq(&self, other: &Self) -> bool {
