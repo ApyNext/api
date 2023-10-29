@@ -97,7 +97,6 @@ pub async fn sse_route(
 
     let stream = stream.map(Ok::<_, Infallible>);
 
-    //TODO use that when disconnected
     tokio::spawn(async move {
         sender.read().await.closed().await;
         disconnect(id, user, users, subscribed_users).await;
@@ -106,7 +105,8 @@ pub async fn sse_route(
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-pub async fn broadcast_msg(msg: Message, users: Users) {
+//TODO adapt that for post notifications
+/*pub async fn broadcast_msg(msg: Message, users: Users) {
     for (_, tx) in users.read().await.iter() {
         let e = SseEvent {
             name: String::from("post_notification"),
@@ -114,7 +114,7 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
         };
         tx.write().await.send(e).expect("Failed to send message");
     }
-}
+}*/
 
 pub async fn disconnect(
     id: usize,
