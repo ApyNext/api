@@ -76,8 +76,6 @@ pub async fn sse_route(
 
     let sender = Arc::new(RwLock::new(sender));
 
-
-
     let stream = UnboundedReceiverStream::new(receiver);
 
     let stream = stream.map(|sse_event| Event::default().json_data(&sse_event).unwrap());
@@ -101,12 +99,7 @@ pub async fn sse_route(
     let f = FuturesUnordered::new();
     
     for id in reader.iter() {
-        f.push({
-            let user = user.clone();
-            let subscribed_users = subscribed_users.clone();
-            async move {
-            add_subscription(*id, user.clone(), subscribed_users.clone());
-        }});
+        f.push(add_subscription(*id, user.clone(), subscribed_users.clone()));
     }
 
     f.collect::<Vec<()>>().await;
