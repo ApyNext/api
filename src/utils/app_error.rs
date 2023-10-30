@@ -23,6 +23,10 @@ pub enum AppError {
     EmailSendError,
     //Login route errors
     IncorrectCredentials,
+    //Auth extractor
+    EmailNotConfirmed,
+    //Follow route
+    YouHaveToBeConnectedToPerformThisAction,
 }
 
 impl IntoResponse for AppError {
@@ -43,6 +47,8 @@ impl IntoResponse for AppError {
             AppError::UsernameAlreadyUsed => "Pseudo déjà utilisé",
             AppError::EmailSendError => "Erreur lors de l'envoi de l'email de vérification.",
             AppError::IncorrectCredentials => "Identifiants invalides",
+            AppError::EmailNotConfirmed => "Email non confirmé",
+            Self::YouHaveToBeConnectedToPerformThisAction => "Il est nécessaire d'être connecté pour pouvoir effectuer cette action"
         };
 
         let status_code = match self {
@@ -59,7 +65,9 @@ impl IntoResponse for AppError {
             | AppError::EmailAddressAlreadyUsed
             | AppError::EmailSendError
             | AppError::UsernameAlreadyUsed
-            | AppError::IncorrectCredentials => StatusCode::FORBIDDEN,
+            | AppError::IncorrectCredentials
+            | AppError::EmailNotConfirmed
+            | Self::YouHaveToBeConnectedToPerformThisAction => StatusCode::FORBIDDEN,
             AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

@@ -16,6 +16,7 @@ use axum::{
 use axum::{Extension, Router};
 use extractors::auth_extractor::AuthUser;
 use libaes::Cipher;
+use routes::follow_user_route::follow_user_route;
 use routes::sse::{sse_route, SseEvent};
 use shuttle_runtime::Service;
 use tokio::sync::mpsc::UnboundedSender;
@@ -131,13 +132,14 @@ async fn axum(
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
         .route("/sse", get(sse_route))
+        .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(CookieManagerLayer::new())
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
-        .layer(axum_middleware::from_extractor::<Option<AuthUser>>())
+        .layer(axum_middleware::from_extractor_with_state::<Option<AuthUser>, AppState>(app_state.clone()))
         .with_state(app_state);
 
     Ok(CustomService { pool, router })
