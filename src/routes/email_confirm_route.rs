@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
 use axum::extract::State;
+use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::Cookie;
 use chrono::Duration;
 use hyper::Method;
 use hyper::StatusCode;
@@ -6,7 +10,6 @@ use rand::{
     distributions::{Alphanumeric, DistString},
     rngs::OsRng,
 };
-use tower_cookies::{Cookie, Cookies};
 use tracing::warn;
 
 use crate::{
@@ -19,8 +22,8 @@ use crate::{
 
 pub async fn email_confirm_route(
     method: Method,
-    State(app_state): State<AppState>,
-    cookies: Cookies,
+    State(app_state): State<Arc<AppState>>,
+    cookies: CookieJar,
     body: String,
 ) -> Result<StatusCode, AppError> {
     let email_verification_token = body;

@@ -14,6 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
+use axum_extra::extract::CookieJar;
 use extractors::auth_extractor::AuthUser;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
@@ -35,10 +36,9 @@ use routes::ok_route::ok_route;
 use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
-use tower_cookies::CookieManagerLayer;
 use tower_http::cors::CorsLayer;
 
-type UserConnection = Arc<RwLock<UnboundedSender<SseEvent>>>;
+type UserConnection = Arc<RwLock<UnboundedSender<Arc<SseEvent>>>>;
 //TODO perhaps useless
 type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
 
@@ -135,12 +135,12 @@ async fn axum(
         .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
-        .layer(CookieManagerLayer::new())
+        .layer(Extension(CookieJar::default()))
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
-        .layer(axum_middleware::from_extractor_with_state::<Option<AuthUser>, AppState>(app_state.clone()))
-        .with_state(app_state);
+        .layer(axum_middleware::from_extractor_with_state::<Option<Arc<AuthUser>>, AppState>(app_state.clone()))
+        .with_state(Arc::new(app_state));
 
     Ok(CustomService { pool, router })
 }

@@ -8,6 +8,8 @@ debug = true
 
 [dependencies]
 axum = { version = "0.6.20", features = ["tokio"] }
+axum-extra = { version = "0.8.0", features = ["cookie"] }
+axum-macros = "0.3.8"
 base64 = "0.21.2"
 chrono = "0.4.26"
 email_address = "0.2.4"
@@ -34,7 +36,6 @@ sqlx = { version = "0.7.1", features = [
 time = { version = "0.3.25", features = ["serde"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-stream = "0.1.14"
-tower-cookies = "0.9.0"
 tower-http = { version = "0.4.3", features = ["cors"] }
 tracing = "0.1.37"
 urlencoding = "2.1.3"

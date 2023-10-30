@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::State, Json};
 use chrono::Duration;
 use hyper::Method;
@@ -15,7 +17,7 @@ use crate::{structs::register_user::RegisterUser, utils::register::send_html_mes
 
 pub async fn register_route(
     method: Method,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(mut register_user): Json<RegisterUser>,
 ) -> Result<StatusCode, AppError> {
     register_user.username = register_user.username.to_lowercase();
@@ -116,7 +118,7 @@ pub async fn register_route(
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
 
     send_html_message(
-        app_state.smtp_client,
+        &app_state.smtp_client,
         "Vérification d'email",
         &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer si vous utilisez la version web ou copier coller ce code <div><code>{}</code></div> dans l'application mobile ou de bureau, sinon vous pouvez ignorer cet email.</p>", register_user.username, FRONT_URL, email_confirm_token, email_confirm_token),
         email,

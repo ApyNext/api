@@ -22,14 +22,14 @@ use crate::{Following, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_I
 
 #[derive(Serialize)]
 pub struct Message {
-    author: i64,
-    content: String,
+    pub author: i64,
+    pub content: String,
 }
 
 #[derive(Serialize)]
 pub struct SseEvent {
-    name: String,
-    content: String,
+    pub name: String,
+    pub content: String,
 }
 
 pub async fn add_subscription(id: usize, subscriber: Arc<User>, subscribed_users: SubscribedUsers) {
@@ -72,13 +72,15 @@ pub async fn sse_route(
     //Generate user id
     let random_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
-    let (sender, receiver) = unbounded_channel::<SseEvent>();
+    let (sender, receiver) = unbounded_channel::<Arc<SseEvent>>();
+
+    let cloned_sender = sender.clone();
 
     let sender = Arc::new(RwLock::new(sender));
 
     let stream = UnboundedReceiverStream::new(receiver);
 
-    let stream = stream.map(|sse_event| Event::default().json_data(&sse_event).unwrap());
+    let stream = stream.map(|sse_event| Ok(Event::default().json_data(sse_event).unwrap()));
 
     users.write().await.insert(random_id, sender.clone());
 
@@ -104,26 +106,35 @@ pub async fn sse_route(
 
     f.collect::<Vec<()>>().await;
 
-    let stream = stream.map(Ok::<_, Infallible>);
-
     tokio::spawn(async move {
-        sender.read().await.closed().await;
+        cloned_sender.closed().await;
         disconnect(random_id, user, users, subscribed_users).await;
     });
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-//TODO adapt that for post notifications
-/*pub async fn broadcast_msg(msg: Message, users: Users) {
-    for (_, tx) in users.read().await.iter() {
-        let e = SseEvent {
-            name: String::from("post_notification"),
-            content: serde_json::to_string(&msg).unwrap(),
-        };
-        tx.write().await.send(e).expect("Failed to send message");
+pub async fn broadcast_msg(msg: Message, users: Users) {
+    let e = Arc::new(SseEvent {
+        name: String::from("message"),
+        content: serde_json::to_string(&msg).unwrap(),
+    });
+
+    let reader = users.read().await;
+
+    let f = FuturesUnordered::new();
+
+    for (_, sender) in reader.iter() {
+        f.push({
+            let e = e.clone();
+            async move {
+                sender.write().await.send(e).expect("Failed to send message");
+            }
+        });
     }
-}*/
+
+    f.collect::<Vec<()>>().await;
+}
 
 pub async fn disconnect(
     id: usize,
@@ -132,9 +143,11 @@ pub async fn disconnect(
     subscribed_users: SubscribedUsers,
 ) {
     info!("Disconnecting {}", id);
+    let f = FuturesUnordered::new();
     users.write().await.remove(&id);
     for id in user.following.read().await.iter() {
-        remove_subscription(*id, user.clone(), subscribed_users.clone()).await;
+        f.push(remove_subscription(*id, user.clone(), subscribed_users.clone()));
     }
+    f.collect::<Vec<()>>().await;
     info!("User {} disconnected", id);
 }

@@ -21,7 +21,7 @@ pub struct Record {
 }
 
 pub fn send_html_message(
-    smtp_client: SmtpTransport,
+    smtp_client: &SmtpTransport,
     subject: &str,
     msg: &str,
     to: Address,

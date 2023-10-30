@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::structs::login_user::LoginUser;
 use crate::utils::app_error::AppError;
 use crate::utils::register::hash_password;
@@ -32,7 +34,7 @@ struct UserForLoginA2FWithoutEmail {
 
 pub async fn login_route(
     method: Method,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Json(register_user): Json<LoginUser>,
 ) -> Result<StatusCode, AppError> {
     let username_or_email = register_user.username_or_email.to_lowercase();
@@ -100,7 +102,7 @@ pub async fn login_route(
     };
 
     send_html_message(
-        app_state.smtp_client,
+        &app_state.smtp_client,
         "Vérifier la connexion",
         &format!("<p>Heureux de te revoir <b>@{}</b> ! Quelqu'un a tenté de se connecter à votre compte, si vous êtes à l’origine de cette action, cliquez <a href='{}/login/a2f?token={}'>ici</a> pour vous connecter, sinon vous pouvez ignorer cet email.</p>", user.username, FRONT_URL, a2f_token),
         email,

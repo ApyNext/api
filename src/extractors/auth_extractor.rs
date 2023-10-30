@@ -1,5 +1,7 @@
-use axum::{extract::FromRequestParts, async_trait, http::request::Parts, response::{Response, IntoResponse}};
-use tower_cookies::Cookies;
+use std::sync::Arc;
+
+use axum::{extract::FromRequestParts, async_trait, http::request::Parts};
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use tracing::warn;
 
@@ -13,17 +15,12 @@ pub struct AuthUser {
     pub email_verified: bool,
 }
 
-pub struct AuthExtractor;
-
 #[async_trait]
-impl FromRequestParts<AppState> for Option<AuthUser> {
+impl FromRequestParts<AppState> for Option<Arc<AuthUser>> {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
-        let cookies = match Cookies::from_request_parts(parts, state).await {
-            Ok(cookies) => cookies,
-            Err(e) => return Err(AppError::InternalServerError)
-        };
+        let cookies = CookieJar::from_request_parts(parts, state).await.unwrap();
         let token = match cookies.get("session") {
             Some(token) => token,
             None => return Ok(None)
