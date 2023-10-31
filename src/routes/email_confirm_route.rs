@@ -25,7 +25,7 @@ pub async fn email_confirm_route(
     State(app_state): State<Arc<AppState>>,
     cookies: CookieJar,
     body: String,
-) -> Result<StatusCode, AppError> {
+) -> Result<(CookieJar, StatusCode), AppError> {
     let email_verification_token = body;
     if email_verification_token.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
@@ -85,9 +85,8 @@ pub async fn email_confirm_route(
     .await
     {
         Ok(_) => {
-            cookies.add(Cookie::new("session", token));
-            Ok(StatusCode::OK)
-        }
+            Ok((cookies.add(Cookie::new("session", token)), StatusCode::OK))
+        },
         Err(e) => {
             warn!(
                 "{} /register/email_confirm Error while verifying account : {}",

@@ -17,7 +17,7 @@ pub async fn a2f_login_route(
     State(app_state): State<Arc<AppState>>,
     cookies: CookieJar,
     body: String,
-) -> Result<StatusCode, AppError> {
+) -> Result<(CookieJar, StatusCode), AppError> {
     let a2f_token = body;
     if a2f_token.is_empty() {
         warn!("{} /login/a2f Token missing", method);
@@ -38,7 +38,5 @@ pub async fn a2f_login_route(
         &format!("{} /login/a2f", method),
     )?;
 
-    cookies.add(Cookie::new("session", token));
-
-    Ok(StatusCode::OK)
+    Ok((cookies.add(Cookie::new("session", token)), StatusCode::OK))
 }

@@ -15,7 +15,6 @@ use axum::{
 };
 use axum::{Extension, Router};
 use axum_extra::extract::CookieJar;
-use extractors::auth_extractor::AuthUser;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::sse::{sse_route, SseEvent};
@@ -139,8 +138,8 @@ async fn axum(
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
-        .layer(axum_middleware::from_extractor_with_state::<Option<Arc<AuthUser>>, AppState>(app_state.clone()))
-        .with_state(Arc::new(app_state));
+        //.layer(Extension(axum_middleware::from_extractor_with_state::<Option<Arc<AuthUser>>, AppState>(app_state.clone())))
+        .with_state(app_state);
 
     Ok(CustomService { pool, router })
 }

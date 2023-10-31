@@ -8,15 +8,17 @@ use tracing::warn;
 use crate::{utils::app_error::AppError, AppState};
 
 #[derive(Deserialize)]
-pub struct AuthUser {
+pub struct InnerAuthUser {
     pub id: i64,
     pub username: String,
     pub token: String,
     pub email_verified: bool,
 }
 
+pub struct AuthUser(pub Option<Arc<InnerAuthUser>>);
+
 #[async_trait]
-impl FromRequestParts<AppState> for Option<Arc<AuthUser>> {
+impl FromRequestParts<AppState> for AuthUser {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
@@ -25,13 +27,13 @@ impl FromRequestParts<AppState> for Option<Arc<AuthUser>> {
             Some(token) => token,
             None => return Ok(None)
         }.to_string();
-        match sqlx::query_as!(AuthUser, "SELECT id, username, token, email_verified FROM users WHERE token = $1", token).fetch_optional(&state.pool).await {
+        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, token, email_verified FROM users WHERE token = $1", token).fetch_optional(&state.pool).await {
             Ok(user) => {
                 if let Some(inner_user) = user {
                     if !inner_user.email_verified {
                         Err(AppError::EmailNotConfirmed)
                     } else {
-                        Ok(None)
+                        Ok(Some(Arc::new(inner_user)))
                     }
                 } else {
                     Ok(None)
@@ -42,5 +44,6 @@ impl FromRequestParts<AppState> for Option<Arc<AuthUser>> {
                 Err(AppError::InternalServerError)
             }
         }
+        Ok(None)
     }
 }
