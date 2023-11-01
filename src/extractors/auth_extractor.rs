@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use axum::{extract::{FromRequestParts, FromRef}, async_trait, http::request::Parts};
 use axum_extra::extract::CookieJar;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use tracing::warn;
 
-use crate::{utils::app_error::AppError, AppState};
+use crate::{utils::{app_error::AppError, token::decode_token}, AppState};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct InnerAuthUser {
     pub id: i64,
     pub username: String,
@@ -31,20 +31,11 @@ where
             Some(token) => token,
             None => return Ok(AuthUser(None))
         }.to_string();
-        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, email_verified FROM users WHERE token = $1", token).fetch_optional(&app_state.pool).await {
-            Ok(user) => {
-                if let Some(inner_user) = user {
-                    if !inner_user.email_verified {
-                        Err(AppError::EmailNotConfirmed)
-                    } else {
-                        Ok(AuthUser(Some(Arc::new(inner_user))))
-                    }
-                } else {
-                    Ok(AuthUser(None))
-                }
-            },
+        let token = decode_token(&token, &app_state.cipher, "Auth extractor")?;
+        match serde_json::from_str::<InnerAuthUser>(&token) {
+            Ok(token) => Ok(AuthUser(Some(Arc::new(token)))),
             Err(e) => {
-                warn!("{e}");
+                warn!("{}", e);
                 Err(AppError::InternalServerError)
             }
         }

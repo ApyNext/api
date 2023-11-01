@@ -1,15 +1,8 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum_extra::extract::CookieJar;
-use axum_extra::extract::cookie::Cookie;
 use chrono::Duration;
 use hyper::Method;
-use hyper::StatusCode;
-use rand::{
-    distributions::{Alphanumeric, DistString},
-    rngs::OsRng,
-};
 use tracing::warn;
 
 use crate::extractors::auth_extractor::InnerAuthUser;
@@ -24,9 +17,8 @@ use crate::{
 pub async fn email_confirm_route(
     method: Method,
     State(app_state): State<Arc<AppState>>,
-    cookies: CookieJar,
     body: String,
-) -> Result<(String, StatusCode), AppError> {
+) -> Result<String, AppError> {
     let email_verification_token = body;
     if email_verification_token.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
@@ -71,12 +63,24 @@ pub async fn email_confirm_route(
         None => (),
     };
 
-    sqlx::query_as!(InnerAuthUser, "SELECT id, username, TRUE AS email_verified FROM users").fetch_one(&app_state.pool).await.unwrap();
-    //TODO get auth user
+    let auth_user = match sqlx::query_as!(InnerAuthUser, r#"SELECT id, username, TRUE AS "email_verified!" FROM users"#).fetch_one(&app_state.pool).await {
+        Ok(user) => user,
+        Err(e) => {
+            warn!("{}", e);
+            return Err(AppError::InternalServerError);
+        }
+    };
+
+    let auth_user = match serde_json::to_string(&auth_user) {
+        Ok(user) => user,
+        Err(e) => {
+            warn!("{}", e);
+            return Err(AppError::InternalServerError);
+        }
+    };
 
     let token = create_token(
-        //TODO replace with auth user
-        Alphanumeric.sample_string(&mut OsRng, 256),
+        auth_user,
         Duration::days(365),
         &app_state.cipher,
     );
@@ -91,7 +95,7 @@ pub async fn email_confirm_route(
     .await
     {
         Ok(_) => {
-            Ok((token, StatusCode::OK))
+            Ok(token)
         },
         Err(e) => {
             warn!(

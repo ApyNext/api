@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, username, TRUE AS email_verified FROM users",
+  "query": "SELECT id, username, TRUE AS \"email_verified!\" FROM users",
   "describe": {
     "columns": [
       {
@@ -15,7 +15,7 @@
       },
       {
         "ordinal": 2,
-        "name": "email_verified",
+        "name": "email_verified!",
         "type_info": "Bool"
       }
     ],
@@ -28,5 +28,5 @@
       null
     ]
   },
-  "hash": "7a6788e4877527020ea4f0f520d6188d6927988b29a232e4e753cef86b05b52a"
+  "hash": "9cf8e3888c1e404c9b145a54a15263809ad3b4dbeaf38f96592707a3f9a41b59"
 }
