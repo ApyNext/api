@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, username, token, email_verified FROM users WHERE token = $1",
+  "query": "SELECT id, username, email_verified FROM users WHERE token = $1",
   "describe": {
     "columns": [
       {
@@ -15,11 +15,6 @@
       },
       {
         "ordinal": 2,
-        "name": "token",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 3,
         "name": "email_verified",
         "type_info": "Bool"
       }
@@ -32,9 +27,8 @@
     "nullable": [
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "384ca8de199d27c2c90fe0284f665da2ec804ff05b2f1a6bb5a3ab675f778f2f"
+  "hash": "c614579f994a4b5a1b4adddf220407ca626f549c54e86affe99d178e0fcf73e2"
 }

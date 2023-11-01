@@ -12,6 +12,7 @@ use rand::{
 };
 use tracing::warn;
 
+use crate::extractors::auth_extractor::InnerAuthUser;
 use crate::{
     utils::{
         app_error::AppError,
@@ -25,7 +26,7 @@ pub async fn email_confirm_route(
     State(app_state): State<Arc<AppState>>,
     cookies: CookieJar,
     body: String,
-) -> Result<(CookieJar, StatusCode), AppError> {
+) -> Result<(String, StatusCode), AppError> {
     let email_verification_token = body;
     if email_verification_token.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
@@ -49,7 +50,7 @@ pub async fn email_confirm_route(
         &format!("{} /register/email_confirm", method),
     )?;
 
-    //Check if email is already used
+    //Check if the email is already used
     match match sqlx::query!("SELECT id FROM users WHERE email = $1", email)
         .fetch_optional(&app_state.pool)
         .await
@@ -70,11 +71,16 @@ pub async fn email_confirm_route(
         None => (),
     };
 
+    sqlx::query_as!(InnerAuthUser, "SELECT id, username, TRUE AS email_verified FROM users").fetch_one(&app_state.pool).await.unwrap();
+    //TODO get auth user
+
     let token = create_token(
+        //TODO replace with auth user
         Alphanumeric.sample_string(&mut OsRng, 256),
         Duration::days(365),
         &app_state.cipher,
     );
+
     match sqlx::query!(
         "UPDATE users SET email = $1, email_verified = TRUE, token = $2 WHERE email = $3;",
         email,
@@ -85,7 +91,7 @@ pub async fn email_confirm_route(
     .await
     {
         Ok(_) => {
-            Ok((cookies.add(Cookie::new("session", token)), StatusCode::OK))
+            Ok((token, StatusCode::OK))
         },
         Err(e) => {
             warn!(

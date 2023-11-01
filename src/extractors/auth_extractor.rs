@@ -11,7 +11,6 @@ use crate::{utils::app_error::AppError, AppState};
 pub struct InnerAuthUser {
     pub id: i64,
     pub username: String,
-    pub token: String,
     pub email_verified: bool,
 }
 
@@ -32,7 +31,7 @@ where
             Some(token) => token,
             None => return Ok(AuthUser(None))
         }.to_string();
-        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, token, email_verified FROM users WHERE token = $1", token).fetch_optional(&app_state.pool).await {
+        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, email_verified FROM users WHERE token = $1", token).fetch_optional(&app_state.pool).await {
             Ok(user) => {
                 if let Some(inner_user) = user {
                     if !inner_user.email_verified {
