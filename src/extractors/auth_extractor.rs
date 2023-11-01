@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{extract::FromRequestParts, async_trait, http::request::Parts};
+use axum::{extract::{FromRequestParts, FromRef}, async_trait, http::request::Parts};
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use tracing::warn;
@@ -18,25 +18,30 @@ pub struct InnerAuthUser {
 pub struct AuthUser(pub Option<Arc<InnerAuthUser>>);
 
 #[async_trait]
-impl FromRequestParts<AppState> for AuthUser {
+impl<S> FromRequestParts<S> for AuthUser
+where
+    Arc<AppState>: FromRef<S>,
+    S: Send + Sync,
+{
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app_state = Arc::<AppState>::from_ref(state);
         let cookies = CookieJar::from_request_parts(parts, state).await.unwrap();
         let token = match cookies.get("session") {
             Some(token) => token,
-            None => return Ok(None)
+            None => return Ok(AuthUser(None))
         }.to_string();
-        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, token, email_verified FROM users WHERE token = $1", token).fetch_optional(&state.pool).await {
+        match sqlx::query_as!(InnerAuthUser, "SELECT id, username, token, email_verified FROM users WHERE token = $1", token).fetch_optional(&app_state.pool).await {
             Ok(user) => {
                 if let Some(inner_user) = user {
                     if !inner_user.email_verified {
                         Err(AppError::EmailNotConfirmed)
                     } else {
-                        Ok(Some(Arc::new(inner_user)))
+                        Ok(AuthUser(Some(Arc::new(inner_user))))
                     }
                 } else {
-                    Ok(None)
+                    Ok(AuthUser(None))
                 }
             },
             Err(e) => {
@@ -44,6 +49,5 @@ impl FromRequestParts<AppState> for AuthUser {
                 Err(AppError::InternalServerError)
             }
         }
-        Ok(None)
     }
 }

@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use axum::{response::{Response, IntoResponse}, Extension, extract::Path};
-use axum_macros::debug_handler;
 use tracing::info;
 
-use crate::{utils::app_error::AppError, extractors::auth_extractor::{AuthUser, InnerAuthUser}, routes::sse::{broadcast_msg, Message}, Users, AppState};
+use crate::{utils::app_error::AppError, extractors::auth_extractor::AuthUser, routes::sse::{broadcast_msg, Message}, Users};
 
 pub async fn follow_user_route(AuthUser(auth_user): AuthUser, Extension(users): Extension<Users>, Path(username): Path<String>) -> Result<Response, AppError> {
     let auth_user = match auth_user.as_ref() {

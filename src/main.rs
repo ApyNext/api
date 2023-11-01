@@ -43,11 +43,10 @@ type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
 
 static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
 
-#[derive(Clone)]
 pub struct AppState {
     pool: PgPool,
     smtp_client: SmtpTransport,
-    cipher: Arc<Cipher>,
+    cipher: Cipher,
 }
 
 pub struct CustomService {
@@ -114,11 +113,11 @@ async fn axum(
         panic!("La clé d'encryption doit avoir une taille de 32 bytes");
     }
 
-    let app_state = AppState {
+    let app_state = Arc::new(AppState {
         pool: pool.clone(),
         smtp_client,
-        cipher: Arc::new(Cipher::new_256(&secret_key.as_bytes().try_into().unwrap())),
-    };
+        cipher: Cipher::new_256(&secret_key.as_bytes().try_into().unwrap()),
+    });
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
@@ -138,7 +137,6 @@ async fn axum(
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
-        //.layer(Extension(axum_middleware::from_extractor_with_state::<Option<Arc<AuthUser>>, AppState>(app_state.clone())))
         .with_state(app_state);
 
     Ok(CustomService { pool, router })
