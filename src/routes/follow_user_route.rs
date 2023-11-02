@@ -11,10 +11,10 @@ pub async fn follow_user_route(AuthUser(auth_user): AuthUser, Extension(users): 
 
     let msg = Message {
         author: auth_user.id,
-        content: format!("Hi ! I'm {} and I want to follow @{}", auth_user.username, username)
+        content: format!("Hi ! My id is {} and I want to follow @{}", auth_user.id, username)
     };
 
     broadcast_msg(msg, users).await;
-    info!("{}", auth_user.username);
+    info!("{}", auth_user.id);
     Ok("".into_response())
 }

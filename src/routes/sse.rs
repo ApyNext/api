@@ -9,16 +9,16 @@ use axum::{
         sse::{Event, KeepAlive},
         Sse,
     },
-    Extension,
+    Extension, extract::State,
 };
 
 use futures_util::{Stream, stream::FuturesUnordered};
 use serde::Serialize;
 use tokio::sync::{RwLock, mpsc::unbounded_channel};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
-use tracing::info;
+use tracing::{info, warn};
 
-use crate::{Following, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID};
+use crate::{SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID, extractors::auth_extractor::{AuthUser, InnerAuthUser}, AppState, utils::app_error::AppError};
 
 #[derive(Serialize)]
 pub struct Message {
@@ -32,7 +32,7 @@ pub struct SseEvent {
     pub content: String,
 }
 
-pub async fn add_subscription(id: usize, subscriber: Arc<User>, subscribed_users: SubscribedUsers) {
+pub async fn add_subscription(id: i64, subscriber: Arc<User>, subscribed_users: SubscribedUsers) {
     if subscribed_users.read().await.contains_key(&id) {
         let u = Arc::new(RwLock::new(SubscribedUser {
             id,
@@ -48,7 +48,7 @@ pub async fn add_subscription(id: usize, subscriber: Arc<User>, subscribed_users
 }
 
 pub async fn remove_subscription(
-    id: usize,
+    id: i64,
     subscriber: Arc<User>,
     subscribed_users: SubscribedUsers,
 ) {
@@ -66,9 +66,15 @@ pub async fn remove_subscription(
 }
 
 pub async fn sse_route(
+    AuthUser(auth_user): AuthUser,
     Extension(users): Extension<Users>,
     Extension(subscribed_users): Extension<SubscribedUsers>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+    let auth_user = match auth_user {
+        Some(user) => user,
+        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction)
+    };
     //Generate user id
     let random_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
@@ -84,12 +90,21 @@ pub async fn sse_route(
 
     users.write().await.insert(random_id, sender.clone());
 
-    //TODO get following
+    let users_followed = match sqlx::query_as!(InnerAuthUser, r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#, auth_user.id).fetch_all(&app_state.pool).await {
+        Ok(users) => users,
+        Err(e) => {
+            warn!("{e}");
+            return Err(AppError::InternalServerError);
+        }
+    };
+
+    let users_id_followed = users_followed.into_iter().map(|user| user.id).into_iter();
+
+    let users_id_followed = HashSet::from_iter(users_id_followed);
 
     let user = User {
         sender: sender.clone(),
-        //TODO replace by the people followed from the DB
-        following: Following::default(),
+        following: Arc::new(RwLock::new(users_id_followed)),
     };
 
     let user = Arc::new(user);
@@ -111,7 +126,7 @@ pub async fn sse_route(
         disconnect(random_id, user, users, subscribed_users).await;
     });
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 pub async fn broadcast_msg(msg: Message, users: Users) {

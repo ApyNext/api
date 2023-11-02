@@ -3,9 +3,10 @@ use std::sync::Arc;
 use axum::extract::State;
 use chrono::Duration;
 use hyper::Method;
+use rand::distributions::{Alphanumeric, DistString};
+use rand::thread_rng;
 use tracing::warn;
 
-use crate::extractors::auth_extractor::InnerAuthUser;
 use crate::{
     utils::{
         app_error::AppError,
@@ -19,12 +20,11 @@ pub async fn email_confirm_route(
     State(app_state): State<Arc<AppState>>,
     body: String,
 ) -> Result<String, AppError> {
-    let email_verification_token = body;
-    if email_verification_token.is_empty() {
+    if body.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
         return Err(AppError::TokenMissing);
     }
-    let email_verification_token = match urlencoding::decode(&email_verification_token) {
+    let email_verification_token = match urlencoding::decode(&body) {
         Ok(token) => token,
         Err(e) => {
             warn!(
@@ -63,24 +63,8 @@ pub async fn email_confirm_route(
         None => (),
     };
 
-    let auth_user = match sqlx::query_as!(InnerAuthUser, r#"SELECT id, username, TRUE AS "email_verified!" FROM users"#).fetch_one(&app_state.pool).await {
-        Ok(user) => user,
-        Err(e) => {
-            warn!("{}", e);
-            return Err(AppError::InternalServerError);
-        }
-    };
-
-    let auth_user = match serde_json::to_string(&auth_user) {
-        Ok(user) => user,
-        Err(e) => {
-            warn!("{}", e);
-            return Err(AppError::InternalServerError);
-        }
-    };
-
     let token = create_token(
-        auth_user,
+        Alphanumeric.sample_string(&mut thread_rng(), 256),
         Duration::days(365),
         &app_state.cipher,
     );
@@ -94,9 +78,7 @@ pub async fn email_confirm_route(
     .execute(&app_state.pool)
     .await
     {
-        Ok(_) => {
-            Ok(token)
-        },
+        Ok(_) => Ok(token),
         Err(e) => {
             warn!(
                 "{} /register/email_confirm Error while verifying account : {}",

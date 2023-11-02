@@ -30,14 +30,12 @@ pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> String {
     //Encrypt data
     let encrypted = cipher.cbc_encrypt(&nonce, plaintext);
     //Encode data with nonce at the beggining
-    let encrypted_encoded =
-        general_purpose::STANDARD.encode([&nonce, encrypted.as_slice()].concat());
-    encrypted_encoded
+    general_purpose::STANDARD.encode([&nonce, encrypted.as_slice()].concat())
 }
 
-pub fn decode_token(jwt: &str, cipher: &Cipher, header: &str) -> Result<String, AppError> {
+pub fn decode_token(token: &str, cipher: &Cipher, header: &str) -> Result<String, AppError> {
     //Decode datas
-    let encyrpted_decoded = match general_purpose::STANDARD.decode(jwt) {
+    let encyrpted_decoded = match general_purpose::STANDARD.decode(token) {
         Ok(result) => result,
         Err(e) => {
             warn!("{} Error while decoding token : {}", header, e);

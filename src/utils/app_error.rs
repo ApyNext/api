@@ -23,8 +23,6 @@ pub enum AppError {
     EmailSendError,
     //Login route errors
     IncorrectCredentials,
-    //Auth extractor
-    EmailNotConfirmed,
     //Follow route
     YouHaveToBeConnectedToPerformThisAction,
 }
@@ -47,7 +45,6 @@ impl IntoResponse for AppError {
             AppError::UsernameAlreadyUsed => "Pseudo déjà utilisé",
             AppError::EmailSendError => "Erreur lors de l'envoi de l'email de vérification.",
             AppError::IncorrectCredentials => "Identifiants invalides",
-            AppError::EmailNotConfirmed => "Email non confirmé",
             Self::YouHaveToBeConnectedToPerformThisAction => "Il est nécessaire d'être connecté pour pouvoir effectuer cette action"
         };
 
@@ -66,7 +63,6 @@ impl IntoResponse for AppError {
             | AppError::EmailSendError
             | AppError::UsernameAlreadyUsed
             | AppError::IncorrectCredentials
-            | AppError::EmailNotConfirmed
             | Self::YouHaveToBeConnectedToPerformThisAction => StatusCode::FORBIDDEN,
             AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
         };

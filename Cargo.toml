@@ -7,7 +7,7 @@ edition = "2021"
 debug = true
 
 [dependencies]
-axum = { version = "0.6.20", features = ["tokio"] }
+axum = { version = "0.6.20", features = ["tokio", "headers"] }
 axum-extra = { version = "0.8.0", features = ["cookie"] }
 axum-macros = "0.3.8"
 base64 = "0.21.2"

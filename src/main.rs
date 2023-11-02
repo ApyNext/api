@@ -55,7 +55,7 @@ pub struct CustomService {
 }
 
 pub struct SubscribedUser {
-    id: usize,
+    id: i64,
     subscribers: Subscribers,
 }
 
@@ -80,8 +80,8 @@ impl Hash for User {
 
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";
 type Subscribers = Arc<RwLock<HashSet<Arc<User>>>>;
-type Following = Arc<RwLock<HashSet<usize>>>;
-type SubscribedUsers = Arc<RwLock<HashMap<usize, Arc<RwLock<SubscribedUser>>>>>;
+type Following = Arc<RwLock<HashSet<i64>>>;
+type SubscribedUsers = Arc<RwLock<HashMap<i64, Arc<RwLock<SubscribedUser>>>>>;
 
 #[shuttle_runtime::main]
 async fn axum(
