@@ -5,20 +5,25 @@ use std::{
 };
 
 use axum::{
+    extract::State,
     response::{
         sse::{Event, KeepAlive},
         Sse,
     },
-    Extension, extract::State,
+    Extension,
 };
 
-use futures_util::{Stream, stream::FuturesUnordered};
+use futures_util::{stream::FuturesUnordered, Stream};
 use serde::Serialize;
-use tokio::sync::{RwLock, mpsc::unbounded_channel};
+use tokio::sync::{mpsc::unbounded_channel, RwLock};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tracing::{info, warn};
 
-use crate::{SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID, extractors::auth_extractor::{AuthUser, InnerAuthUser}, AppState, utils::app_error::AppError};
+use crate::{
+    extractors::auth_extractor::{AuthUser, InnerAuthUser},
+    utils::app_error::AppError,
+    AppState, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID,
+};
 
 #[derive(Serialize)]
 pub struct Message {
@@ -71,9 +76,12 @@ pub async fn sse_route(
     Extension(subscribed_users): Extension<SubscribedUsers>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+    if let None = auth_user {
+        info!("ah embêtant");
+    }
     let auth_user = match auth_user {
         Some(user) => user,
-        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction)
+        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction),
     };
     //Generate user id
     let random_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
@@ -82,7 +90,7 @@ pub async fn sse_route(
 
     let cloned_sender = sender.clone();
 
-    let sender = Arc::new(RwLock::new(sender));
+    let sender = Arc::new(RwLock::new((auth_user.id, sender)));
 
     let stream = UnboundedReceiverStream::new(receiver);
 
@@ -90,7 +98,14 @@ pub async fn sse_route(
 
     users.write().await.insert(random_id, sender.clone());
 
-    let users_followed = match sqlx::query_as!(InnerAuthUser, r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#, auth_user.id).fetch_all(&app_state.pool).await {
+    let users_followed = match sqlx::query_as!(
+        InnerAuthUser,
+        r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#,
+        auth_user.id
+    )
+    .fetch_all(&app_state.pool)
+    .await
+    {
         Ok(users) => users,
         Err(e) => {
             warn!("{e}");
@@ -114,9 +129,13 @@ pub async fn sse_route(
     let reader = user_cloned.following.read().await;
 
     let f = FuturesUnordered::new();
-    
+
     for id in reader.iter() {
-        f.push(add_subscription(*id, user.clone(), subscribed_users.clone()));
+        f.push(add_subscription(
+            *id,
+            user.clone(),
+            subscribed_users.clone(),
+        ));
     }
 
     f.collect::<Vec<()>>().await;
@@ -143,7 +162,12 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
         f.push({
             let e = e.clone();
             async move {
-                sender.write().await.send(e).expect("Failed to send message");
+                sender
+                    .write()
+                    .await
+                    .1
+                    .send(e)
+                    .expect("Failed to send message");
             }
         });
     }
@@ -161,7 +185,11 @@ pub async fn disconnect(
     let f = FuturesUnordered::new();
     users.write().await.remove(&id);
     for id in user.following.read().await.iter() {
-        f.push(remove_subscription(*id, user.clone(), subscribed_users.clone()));
+        f.push(remove_subscription(
+            *id,
+            user.clone(),
+            subscribed_users.clone(),
+        ));
     }
     f.collect::<Vec<()>>().await;
     info!("User {} disconnected", id);

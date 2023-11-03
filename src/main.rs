@@ -1,8 +1,8 @@
+mod extractors;
 mod middleware;
 mod routes;
 mod structs;
 mod utils;
-mod extractors;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -14,7 +14,6 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
-use axum_extra::extract::CookieJar;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::sse::{sse_route, SseEvent};
@@ -37,7 +36,7 @@ use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
-type UserConnection = Arc<RwLock<UnboundedSender<Arc<SseEvent>>>>;
+type UserConnection = Arc<RwLock<(i64, UnboundedSender<Arc<SseEvent>>)>>;
 //TODO perhaps useless
 type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
 
@@ -133,7 +132,6 @@ async fn axum(
         .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
-        .layer(Extension(CookieJar::default()))
         //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))

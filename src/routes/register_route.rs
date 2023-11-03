@@ -8,7 +8,6 @@ use lettre::Address;
 use time::OffsetDateTime;
 use tracing::warn;
 
-use crate::extractors::auth_extractor::InnerAuthUser;
 use crate::utils::app_error::AppError;
 use crate::utils::register::check_register_infos;
 use crate::utils::register::hash_password;
