@@ -6,7 +6,6 @@ mod utils;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use axum::{
@@ -36,11 +35,8 @@ use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
-type UserConnection = Arc<RwLock<(i64, UnboundedSender<Arc<SseEvent>>)>>;
-//TODO perhaps useless
-type Users = Arc<RwLock<HashMap<usize, UserConnection>>>;
-
-static NEXT_USER_ID: AtomicUsize = AtomicUsize::new(1);
+type UserConnection = Arc<RwLock<UnboundedSender<Arc<SseEvent>>>>;
+type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
 
 pub struct AppState {
     pool: PgPool,
@@ -132,7 +128,6 @@ async fn axum(
         .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
-        //TODO Perhaps useless
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);

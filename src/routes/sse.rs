@@ -1,8 +1,4 @@
-use std::{
-    collections::HashSet,
-    convert::Infallible,
-    sync::{atomic::Ordering, Arc},
-};
+use std::{collections::HashSet, convert::Infallible, sync::Arc};
 
 use axum::{
     extract::State,
@@ -22,7 +18,7 @@ use tracing::{info, warn};
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
     utils::app_error::AppError,
-    AppState, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID,
+    AppState, SubscribedUser, SubscribedUsers, User, Users,
 };
 
 #[derive(Serialize)]
@@ -83,20 +79,26 @@ pub async fn sse_route(
         Some(user) => user,
         None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction),
     };
-    //Generate user id
-    let random_id = NEXT_USER_ID.fetch_add(1, Ordering::Relaxed);
 
     let (sender, receiver) = unbounded_channel::<Arc<SseEvent>>();
 
     let cloned_sender = sender.clone();
 
-    let sender = Arc::new(RwLock::new((auth_user.id, sender)));
+    let sender = Arc::new(RwLock::new(sender));
 
     let stream = UnboundedReceiverStream::new(receiver);
 
     let stream = stream.map(|sse_event| Ok(Event::default().json_data(sse_event).unwrap()));
 
-    users.write().await.insert(random_id, sender.clone());
+    let mut writer = users.write().await;
+
+    if writer.contains_key(&auth_user.id) {
+        writer.get_mut(&auth_user.id).unwrap().push(sender.clone());
+    } else {
+        writer.insert(auth_user.id, Vec::from_iter([sender.clone()].into_iter()));
+    }
+
+    drop(writer);
 
     let users_followed = match sqlx::query_as!(
         InnerAuthUser,
@@ -142,7 +144,7 @@ pub async fn sse_route(
 
     tokio::spawn(async move {
         cloned_sender.closed().await;
-        disconnect(random_id, user, users, subscribed_users).await;
+        disconnect(auth_user.id, user, users, subscribed_users).await;
     });
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
@@ -158,32 +160,33 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
 
     let f = FuturesUnordered::new();
 
-    for (_, sender) in reader.iter() {
-        f.push({
-            let e = e.clone();
-            async move {
-                sender
-                    .write()
-                    .await
-                    .1
-                    .send(e)
-                    .expect("Failed to send message");
-            }
-        });
+    for (_, senders) in reader.iter() {
+        for sender in senders.iter() {
+            f.push({
+                let e = e.clone();
+                async move {
+                    sender
+                        .write()
+                        .await
+                        .send(e)
+                        .expect("Failed to send message");
+                }
+            });
+        }
     }
 
     f.collect::<Vec<()>>().await;
 }
 
-pub async fn disconnect(
-    id: usize,
-    user: Arc<User>,
-    users: Users,
-    subscribed_users: SubscribedUsers,
-) {
+pub async fn disconnect(id: i64, user: Arc<User>, users: Users, subscribed_users: SubscribedUsers) {
     info!("Disconnecting {}", id);
     let f = FuturesUnordered::new();
-    users.write().await.remove(&id);
+
+    let mut writer = users.write().await;
+    match writer.get_mut(&id) {
+        Some(senders) => for sender in senders.iter() {},
+        None => warn!("User with id {id} is not is the users Vec"),
+    }
     for id in user.following.read().await.iter() {
         f.push(remove_subscription(
             *id,
