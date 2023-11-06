@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum_extra::extract::cookie::Cookie;
+use axum_extra::extract::CookieJar;
 use chrono::Duration;
 use hyper::Method;
 use rand::distributions::{Alphanumeric, DistString};
@@ -18,8 +20,9 @@ use crate::{
 pub async fn email_confirm_route(
     method: Method,
     State(app_state): State<Arc<AppState>>,
+    cookies: CookieJar,
     body: String,
-) -> Result<String, AppError> {
+) -> Result<CookieJar, AppError> {
     if body.is_empty() {
         warn!("{} /register/email_confirm Token missing", method);
         return Err(AppError::TokenMissing);
@@ -78,7 +81,7 @@ pub async fn email_confirm_route(
     .execute(&app_state.pool)
     .await
     {
-        Ok(_) => Ok(token),
+        Ok(_) => Ok(cookies.add(Cookie::new("session", token))),
         Err(e) => {
             warn!(
                 "{} /register/email_confirm Error while verifying account : {}",

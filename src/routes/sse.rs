@@ -72,9 +72,6 @@ pub async fn sse_route(
     Extension(subscribed_users): Extension<SubscribedUsers>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
-    if let None = auth_user {
-        info!("ah embêtant");
-    }
     let auth_user = match auth_user {
         Some(user) => user,
         None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction),
@@ -178,15 +175,24 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
     f.collect::<Vec<()>>().await;
 }
 
+pub async fn remove_from_users(id: i64, users: Users, user: Arc<User>) {
+    match users.write().await.get_mut(&id) {
+        Some(senders) => {
+            for (i, sender) in senders.iter().enumerate() {
+                if Arc::ptr_eq(sender, &user.sender) {
+                    senders.remove(i);
+                    break;
+                }
+            }
+        }
+        None => warn!("User with id {id} is not is the users Vec"),
+    };
+}
+
 pub async fn disconnect(id: i64, user: Arc<User>, users: Users, subscribed_users: SubscribedUsers) {
     info!("Disconnecting {}", id);
     let f = FuturesUnordered::new();
 
-    let mut writer = users.write().await;
-    match writer.get_mut(&id) {
-        Some(senders) => for sender in senders.iter() {},
-        None => warn!("User with id {id} is not is the users Vec"),
-    }
     for id in user.following.read().await.iter() {
         f.push(remove_subscription(
             *id,
@@ -194,6 +200,6 @@ pub async fn disconnect(id: i64, user: Arc<User>, users: Users, subscribed_users
             subscribed_users.clone(),
         ));
     }
-    f.collect::<Vec<()>>().await;
+    tokio::join!(f.collect::<Vec<()>>(), remove_from_users(id, users, user));
     info!("User {} disconnected", id);
 }

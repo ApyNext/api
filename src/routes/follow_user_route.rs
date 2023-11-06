@@ -1,20 +1,29 @@
-use axum::{response::{Response, IntoResponse}, Extension, extract::Path};
+use std::sync::Arc;
+
+use axum::{
+    extract::{Path, State},
+    response::{IntoResponse, Response},
+    Extension,
+};
 use tracing::info;
 
-use crate::{utils::app_error::AppError, extractors::auth_extractor::AuthUser, routes::sse::{broadcast_msg, Message}, Users};
+use crate::{
+    extractors::auth_extractor::AuthUser,
+    routes::sse::{broadcast_msg, Message},
+    utils::app_error::AppError,
+    AppState, Users,
+};
 
-pub async fn follow_user_route(AuthUser(auth_user): AuthUser, Extension(users): Extension<Users>, Path(username): Path<String>) -> Result<Response, AppError> {
+pub async fn follow_user_route(
+    AuthUser(auth_user): AuthUser,
+    Extension(users): Extension<Users>,
+    Path(username): Path<String>,
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
     let auth_user = match auth_user.as_ref() {
         Some(user) => user,
-        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction)
+        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction),
     };
 
-    let msg = Message {
-        author: auth_user.id,
-        content: format!("Hi ! My id is {} and I want to follow @{}", auth_user.id, username)
-    };
-
-    broadcast_msg(msg, users).await;
-    info!("{}", auth_user.id);
     Ok("".into_response())
 }
