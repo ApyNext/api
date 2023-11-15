@@ -8,16 +8,17 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::Arc;
 
+use axum::extract::ws::{Message, WebSocket};
 use axum::{
     middleware as axum_middleware,
     routing::{get, post},
 };
 use axum::{Extension, Router};
+use futures_util::stream::SplitSink;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
-use routes::sse::{sse_route, SseEvent};
+use routes::ws_route::ws_route;
 use shuttle_runtime::Service;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -35,7 +36,7 @@ use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
-type UserConnection = Arc<RwLock<UnboundedSender<Arc<SseEvent>>>>;
+type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
 type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
 
 pub struct AppState {
@@ -124,7 +125,7 @@ async fn axum(
         .route("/register/email_confirm", post(email_confirm_route))
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
-        .route("/sse", get(sse_route))
+        .route("/sse", get(ws_route))
         .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
