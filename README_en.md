@@ -95,3 +95,9 @@ Body (string) :
 Returns :
 - Status code `200 Ok` and an auth token stored as a cookie
 - Status code `403 Forbidden` and the error message when the token is missing, invalid or expired
+
+### WebSockets
+Requête : `GET /ws`
+
+Headers :
+- Bearer authorization (optional)

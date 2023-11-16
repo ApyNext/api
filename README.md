@@ -96,3 +96,9 @@ Body (châine de caractères) :
 Renvoie :
 - Code de status `200 Ok` et un token de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
+
+### WebSockets
+Requête : `GET /ws`
+
+Headers :
+- Autorisation Bearer (facultative)
