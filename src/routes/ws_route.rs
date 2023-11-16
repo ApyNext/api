@@ -137,12 +137,12 @@ pub async fn handle_socket(
                 let msg = if let Ok(msg) = msg {
                     msg
                 } else {
-                    disconnect(auth_user.id, user, users, subscribed_users);
-                    return;
+                    break;
                 };
 
                 info!("{:?}", msg);
             }
+            disconnect(auth_user.id, user, users, subscribed_users).await;
         }
         None => {
             while let Some(msg) = receiver.next().await {
@@ -168,7 +168,10 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
             f.push({
                 let msg = msg.clone();
                 async move {
-                    sender.write().await.send(msg).await;
+                    match sender.write().await.send(msg).await {
+                        Ok(_) => {}
+                        Err(e) => warn!("{e}"),
+                    };
                 }
             });
         }

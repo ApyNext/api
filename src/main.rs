@@ -125,7 +125,7 @@ async fn axum(
         .route("/register/email_confirm", post(email_confirm_route))
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
-        .route("/sse", get(ws_route))
+        .route("/ws", get(ws_route))
         .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))

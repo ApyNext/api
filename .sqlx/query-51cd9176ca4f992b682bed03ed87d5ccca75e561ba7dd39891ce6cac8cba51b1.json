@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM users WHERE token = $1 AND email_verified = FALSE",
+  "query": "SELECT id FROM users WHERE token = $1 AND email_verified = TRUE",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "1c6f060a5761824fac8e53641b0677b067fd1069a9b133178bcc6e56f23f984f"
+  "hash": "51cd9176ca4f992b682bed03ed87d5ccca75e561ba7dd39891ce6cac8cba51b1"
 }
