@@ -6,6 +6,7 @@ mod utils;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::sync::atomic::AtomicI64;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
@@ -35,9 +36,6 @@ use routes::register_route::register_route;
 use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-
-type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
-type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
 
 pub struct AppState {
     pool: PgPool,
@@ -78,6 +76,9 @@ const FRONT_URL: &str = "https://apynext.creativeblogger.org";
 type Subscribers = Arc<RwLock<HashSet<Arc<User>>>>;
 type Following = Arc<RwLock<HashSet<i64>>>;
 type SubscribedUsers = Arc<RwLock<HashMap<i64, Arc<RwLock<SubscribedUser>>>>>;
+type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
+type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
+static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
 #[shuttle_runtime::main]
 async fn axum(

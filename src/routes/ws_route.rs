@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::{atomic::Ordering, Arc},
+};
 
 use axum::{
     extract::{
@@ -16,7 +19,7 @@ use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    AppState, SubscribedUser, SubscribedUsers, User, Users,
+    AppState, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID,
 };
 
 #[derive(Serialize)]
@@ -101,7 +104,7 @@ pub async fn handle_socket(
             if writer.contains_key(&auth_user.id) {
                 writer.get_mut(&auth_user.id).unwrap().push(sender.clone());
             } else {
-                writer.insert(auth_user.id, Vec::from_iter([sender.clone()].into_iter()));
+                writer.insert(auth_user.id, vec![sender.clone()]);
             }
 
             drop(writer);
@@ -133,6 +136,24 @@ pub async fn handle_socket(
 
             f.collect::<Vec<()>>().await;
 
+            let length = users.read().await.len();
+
+            let event = match serde_json::to_string(&SseEvent {
+                name: "users_count_update".to_string(),
+                content: length.to_string(),
+            }) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("{e}");
+                    disconnect(auth_user.id, user, users, subscribed_users).await;
+                    return;
+                }
+            };
+
+            let msg = Message::Text(event);
+
+            broadcast_msg(msg, users.clone()).await;
+
             while let Some(msg) = receiver.next().await {
                 let msg = if let Ok(msg) = msg {
                     msg
@@ -145,6 +166,29 @@ pub async fn handle_socket(
             disconnect(auth_user.id, user, users, subscribed_users).await;
         }
         None => {
+            let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
+
+            users.write().await.insert(id, vec![sender]);
+            let length = users.read().await.len();
+
+            let length = length.to_string();
+
+            let event = match serde_json::to_string(&SseEvent {
+                name: "users_count_update".to_string(),
+                content: length,
+            }) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("{e}");
+                    users.write().await.remove(&id);
+                    return;
+                }
+            };
+
+            let msg = Message::Text(event);
+
+            broadcast_msg(msg, users.clone()).await;
+
             while let Some(msg) = receiver.next().await {
                 let msg = if let Ok(msg) = msg {
                     msg
@@ -153,7 +197,13 @@ pub async fn handle_socket(
                 };
 
                 info!("{:?}", msg);
+
+                broadcast_msg(msg, users.clone()).await;
             }
+
+            users.write().await.remove(&id);
+
+            info!("Disconnected {id}");
         }
     }
 }
