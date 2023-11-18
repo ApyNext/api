@@ -8,7 +8,7 @@ use axum::{
     TypedHeader,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{utils::app_error::AppError, AppState};
 
@@ -33,12 +33,11 @@ where
             match TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await {
                 Ok(header) => header,
                 Err(e) => {
-                    warn!("{e}");
+                    info!("User not connected : {e}");
                     return Ok(AuthUser(None));
                 }
             };
-        let token = typed_header.token();
-        let token = match urlencoding::decode(token) {
+        let token = match urlencoding::decode(typed_header.token()) {
             Ok(token) => token,
             Err(e) => {
                 warn!("{e}");
