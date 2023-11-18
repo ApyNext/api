@@ -7,6 +7,7 @@ mod utils;
 use std::collections::{HashMap, HashSet};
 use std::env::var;
 use std::hash::Hash;
+use std::net::SocketAddr;
 use std::sync::atomic::AtomicI64;
 use std::sync::Arc;
 
@@ -20,7 +21,8 @@ use futures_util::stream::SplitSink;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::ws_route::ws_route;
-use shuttle_runtime::Service;
+
+use sqlx::postgres::PgPoolOptions;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -41,11 +43,6 @@ pub struct AppState {
     pool: PgPool,
     smtp_client: SmtpTransport,
     cipher: Cipher,
-}
-
-pub struct CustomService {
-    router: Router,
-    pool: PgPool,
 }
 
 pub struct SubscribedUser {
@@ -80,11 +77,13 @@ type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
 type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
 static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
-#[shuttle_runtime::main]
-async fn axum(
-    //#[shuttle_secrets::Secrets] secrets: SecretStore,
-    #[shuttle_shared_db::Postgres(local_uri = &var("DATABASE_URL").unwrap())] pool: PgPool,
-) -> Result<CustomService, shuttle_runtime::Error> {
+#[tokio::main]
+async fn main() {
+    let pool = PgPoolOptions::new()
+        .connect(&var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
@@ -132,21 +131,13 @@ async fn axum(
         .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);
 
-    Ok(CustomService { pool, router })
-}
+    let serve_router = axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
+        .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 
-#[shuttle_runtime::async_trait]
-impl Service for CustomService {
-    async fn bind(self, addr: std::net::SocketAddr) -> Result<(), shuttle_runtime::Error> {
-        let serve_router = axum::Server::bind(&addr).serve(self.router.into_make_service());
-
-        tokio::select! {
-            _ = delete_not_activated_expired_accounts(&self.pool) => {
-                warn!("This should never happen");
-            },
-            _ = serve_router => {}
-        }
-
-        Ok(())
-    }
+    tokio::select! {
+        _ = delete_not_activated_expired_accounts(&pool) => {
+            warn!("This should never happen");
+        },
+        _ = serve_router => {}
+    };
 }

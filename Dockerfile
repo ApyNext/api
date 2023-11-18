@@ -4,5 +4,5 @@ WORKDIR /app
 
 COPY . .
 
-RUN cargo install cargo-shuttle
-CMD ["cargo", "shuttle", "run", "--release"]
+RUN cargo build --release
+CMD ["cargo", "run", "--release"]
