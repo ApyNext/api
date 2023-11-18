@@ -79,43 +79,108 @@ static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
 #[tokio::main]
 async fn main() {
-    let pool = PgPoolOptions::new()
-        .connect(&var("DATABASE_URL").unwrap())
-        .await
-        .unwrap();
+    let database_url = match var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(e) => {
+            warn!("Error getting DATABASE_URL env variable : {e}");
+            return;
+        }
+    };
+
+    let secret_key = match var("ENCODING_KEY") {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("Error getting ENCODING_KEY env variable : {e}");
+            return;
+        }
+    };
+
+    let secret_key: [u8; 32] = match secret_key.as_bytes().try_into() {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("The encryption key must be 32 bytes : {e}");
+            return;
+        }
+    };
+
+    let front_url = match var("FRONT_URL") {
+        Ok(url) => url,
+        Err(e) => {
+            warn!("Error getting FRONT_URL env variable : {e}");
+            return;
+        }
+    };
+
+    let front_url = match front_url.parse::<HeaderValue>() {
+        Ok(url) => url,
+        Err(e) => {
+            warn!("FRONT_URL is an invalid URL : {e}");
+            return;
+        }
+    };
+
+    let email_smtp_server = match var("EMAIL_SMTP_SERVER") {
+        Ok(server_addr) => server_addr,
+        Err(e) => {
+            warn!("Error getting EMAIL_SMTP_SERVER env variable : {e}");
+            return;
+        }
+    };
+
+    let email = match var("EMAIL") {
+        Ok(email) => email,
+        Err(e) => {
+            warn!("Error getting EMAIL env variable : {e}");
+            return;
+        }
+    };
+
+    let email_password = match var("EMAIL_PASSWORD") {
+        Ok(password) => password,
+        Err(e) => {
+            warn!("Error getting EMAIL_PASSWORD env variable : {e}");
+            return;
+        }
+    };
+
+    let pool = match PgPoolOptions::new().connect(&database_url).await {
+        Ok(pool) => pool,
+        Err(e) => {
+            warn!("Error connecting to the DB : {e}");
+            return;
+        }
+    };
+
+    drop(database_url);
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");
 
-    let smtp_client = SmtpTransport::relay(&var("EMAIL_SMTP_SERVER").unwrap())
+    let smtp_client = SmtpTransport::relay(&email_smtp_server)
         .unwrap()
-        .credentials(Credentials::new(
-            var("EMAIL").unwrap(),
-            var("EMAIL_PASSWORD").unwrap(),
-        ))
+        .credentials(Credentials::new(email, email_password))
         .build();
+
+    drop(email_smtp_server);
 
     if smtp_client.test_connection().unwrap() {
         info!("Connexion SMTP effectuée avec succès !");
     }
 
-    let secret_key = var("ENCODING_KEY").expect("Please set ENCODING_KEY value in Secrets.toml");
-
-    if secret_key.len() != 32 {
-        panic!("La clé d'encryption doit avoir une taille de 32 bytes");
-    }
-
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
         smtp_client,
-        cipher: Cipher::new_256(&secret_key.as_bytes().try_into().unwrap()),
+        cipher: Cipher::new_256(&secret_key),
     });
+
+    //Drop secret_key as it's no longer needed
+    let _ = secret_key;
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-        .allow_origin(FRONT_URL.parse::<HeaderValue>().unwrap());
+        .allow_origin(front_url);
 
     let router = Router::new()
         .route("/", get(ok_route))
@@ -124,13 +189,12 @@ async fn main() {
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
         .route("/ws", get(ws_route))
-        .route("/@:username/follow", post(follow_user_route))
+        .route("/@:id/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger_middleware))
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);
-
     let serve_router = axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 

@@ -14,7 +14,7 @@ pub enum AppError {
     UsernameMustOnlyContainLettersDigitsAndUnderscores,
     InvalidEmail,
     PasswordTooShort,
-//TODO    BiographyTooLong,
+    //TODO    BiographyTooLong,
     //Register route errors
     InvalidBirthdate,
     EmailAddressAlreadyUsed,
@@ -25,6 +25,8 @@ pub enum AppError {
     IncorrectCredentials,
     //Follow route
     YouHaveToBeConnectedToPerformThisAction,
+    YouCannotFollowYourself,
+    YouAreAlreadyFollowingThisUser,
 }
 
 impl IntoResponse for AppError {
@@ -45,7 +47,10 @@ impl IntoResponse for AppError {
             AppError::UsernameAlreadyUsed => "Pseudo déjà utilisé",
             AppError::EmailSendError => "Erreur lors de l'envoi de l'email de vérification.",
             AppError::IncorrectCredentials => "Identifiants invalides",
-            Self::YouHaveToBeConnectedToPerformThisAction => "Il est nécessaire d'être connecté pour pouvoir effectuer cette action"
+            Self::YouHaveToBeConnectedToPerformThisAction => "Il est nécessaire d'être connecté pour pouvoir effectuer cette action",
+            Self::YouCannotFollowYourself => "Vous ne pouvez pas vous suivre vous-même",
+            AppError::YouAreAlreadyFollowingThisUser => "Vous suivez déjà cet utilisateur",
+            
         };
 
         let status_code = match self {
@@ -63,7 +68,9 @@ impl IntoResponse for AppError {
             | AppError::EmailSendError
             | AppError::UsernameAlreadyUsed
             | AppError::IncorrectCredentials
-            | Self::YouHaveToBeConnectedToPerformThisAction => StatusCode::FORBIDDEN,
+            | Self::YouHaveToBeConnectedToPerformThisAction
+            | Self::YouCannotFollowYourself
+            | AppError::YouAreAlreadyFollowingThisUser => StatusCode::FORBIDDEN,
             AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
