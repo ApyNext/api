@@ -1,4 +1,8 @@
 from rust:latest
 
+WORKDIR /app
+
+COPY . .
+
 RUN cargo install cargo-shuttle
-RUN cargo shuttle run --release
+CMD ["cargo", "shuttle", "run", "--release"]

@@ -5,6 +5,7 @@ mod structs;
 mod utils;
 
 use std::collections::{HashMap, HashSet};
+use std::env::var;
 use std::hash::Hash;
 use std::sync::atomic::AtomicI64;
 use std::sync::Arc;
@@ -33,7 +34,6 @@ use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
 use routes::ok_route::ok_route;
 use routes::register_route::register_route;
-use shuttle_secrets::SecretStore;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
@@ -82,19 +82,19 @@ static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
 #[shuttle_runtime::main]
 async fn axum(
-    #[shuttle_secrets::Secrets] secrets: SecretStore,
-    #[shuttle_shared_db::Postgres(local_uri = "{secrets.DATABASE_URL}")] pool: PgPool,
+    //#[shuttle_secrets::Secrets] secrets: SecretStore,
+    #[shuttle_shared_db::Postgres(local_uri = &var("DATABASE_URL").unwrap())] pool: PgPool,
 ) -> Result<CustomService, shuttle_runtime::Error> {
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");
 
-    let smtp_client = SmtpTransport::relay(&secrets.get("EMAIL_SMTP_SERVER").unwrap())
+    let smtp_client = SmtpTransport::relay(&var("EMAIL_SMTP_SERVER").unwrap())
         .unwrap()
         .credentials(Credentials::new(
-            secrets.get("EMAIL").unwrap(),
-            secrets.get("EMAIL_PASSWORD").unwrap(),
+            var("EMAIL").unwrap(),
+            var("EMAIL_PASSWORD").unwrap(),
         ))
         .build();
 
@@ -102,9 +102,7 @@ async fn axum(
         info!("Connexion SMTP effectuée avec succès !");
     }
 
-    let secret_key = secrets
-        .get("ENCODING_KEY")
-        .expect("Please set ENCODING_KEY value in Secrets.toml");
+    let secret_key = var("ENCODING_KEY").expect("Please set ENCODING_KEY value in Secrets.toml");
 
     if secret_key.len() != 32 {
         panic!("La clé d'encryption doit avoir une taille de 32 bytes");
