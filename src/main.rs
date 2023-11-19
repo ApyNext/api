@@ -84,6 +84,7 @@ static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt().init();
     let database_url = match var("DATABASE_URL") {
         Ok(url) => url,
         Err(e) => {
