@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    AppState, SubscribedUser, SubscribedUsers, User, Users, NEXT_USER_ID,
+    AppState, SubscribedUser, SubscribedUsers, Subscriber, User, Users, NEXT_USER_ID,
 };
 
 #[derive(Serialize)]
@@ -28,7 +28,11 @@ pub struct SseEvent {
     pub content: String,
 }
 
-pub async fn add_subscription(id: i64, subscriber: Arc<User>, subscribed_users: SubscribedUsers) {
+pub async fn add_subscription(
+    id: i64,
+    subscriber: Arc<Subscriber>,
+    subscribed_users: SubscribedUsers,
+) {
     if subscribed_users.read().await.contains_key(&id) {
         let u = Arc::new(RwLock::new(SubscribedUser {
             id,
@@ -45,7 +49,7 @@ pub async fn add_subscription(id: i64, subscriber: Arc<User>, subscribed_users: 
 
 pub async fn remove_subscription(
     id: i64,
-    subscriber: Arc<User>,
+    subscriber: Arc<Subscriber>,
     subscribed_users: SubscribedUsers,
 ) {
     if !subscribed_users.read().await.contains_key(&id) {
@@ -98,24 +102,34 @@ pub async fn handle_socket(
                     return;
                 }
             };
-
-            let mut writer = users.write().await;
-
-            if writer.contains_key(&auth_user.id) {
-                writer.get_mut(&auth_user.id).unwrap().push(sender.clone());
-            } else {
-                writer.insert(auth_user.id, vec![sender.clone()]);
-            }
-
-            drop(writer);
-
             let users_id_followed = users_followed.into_iter().map(|user| user.id).into_iter();
 
             let users_id_followed = HashSet::from_iter(users_id_followed);
 
-            let user = User {
+            let following = Arc::new(RwLock::new(users_id_followed));
+
+            let mut writer = users.write().await;
+
+            if writer.contains_key(&auth_user.id) {
+                writer
+                    .get_mut(&auth_user.id)
+                    .unwrap()
+                    .senders
+                    .push(sender.clone());
+            } else {
+                let user = User {
+                    following: following.clone(),
+                    senders: vec![sender.clone()],
+                };
+
+                writer.insert(auth_user.id, user);
+            }
+
+            drop(writer);
+
+            let user = Subscriber {
                 sender: sender.clone(),
-                following: Arc::new(RwLock::new(users_id_followed)),
+                following,
             };
 
             let user = Arc::new(user);
@@ -168,7 +182,12 @@ pub async fn handle_socket(
         None => {
             let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-            users.write().await.insert(id, vec![sender]);
+            let user = User {
+                following: Arc::new(RwLock::new(HashSet::new())),
+                senders: vec![sender],
+            };
+
+            users.write().await.insert(id, user);
             let length = users.read().await.len();
 
             let length = length.to_string();
@@ -214,7 +233,7 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
     let f = FuturesUnordered::new();
 
     for (_, senders) in reader.iter() {
-        for sender in senders.iter() {
+        for sender in senders.senders.iter() {
             f.push({
                 let msg = msg.clone();
                 async move {
@@ -230,12 +249,12 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
     f.collect::<Vec<()>>().await;
 }
 
-pub async fn remove_from_users(id: i64, users: Users, user: Arc<User>) {
+pub async fn remove_from_users(id: i64, users: Users, user: Arc<Subscriber>) {
     match users.write().await.get_mut(&id) {
         Some(senders) => {
-            for (i, sender) in senders.iter().enumerate() {
+            for (i, sender) in senders.senders.iter().enumerate() {
                 if Arc::ptr_eq(sender, &user.sender) {
-                    senders.remove(i);
+                    senders.senders.remove(i);
                     break;
                 }
             }
@@ -244,7 +263,12 @@ pub async fn remove_from_users(id: i64, users: Users, user: Arc<User>) {
     };
 }
 
-pub async fn disconnect(id: i64, user: Arc<User>, users: Users, subscribed_users: SubscribedUsers) {
+pub async fn disconnect(
+    id: i64,
+    user: Arc<Subscriber>,
+    users: Users,
+    subscribed_users: SubscribedUsers,
+) {
     info!("Disconnecting {}", id);
     let f = FuturesUnordered::new();
 

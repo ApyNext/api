@@ -1,18 +1,26 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::{
+    extract::{Path, State},
+    Extension,
+};
 use tracing::{info, warn};
 
-use crate::{extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState};
+use crate::{
+    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, SubscribedUsers,
+    Subscriber, Users,
+};
+
+use super::ws_route::add_subscription;
 
 pub struct Count {
     total: i64,
 }
 
-//TODO implement follow user route
 pub async fn follow_user_route(
     AuthUser(auth_user): AuthUser,
-    //Extension(users): Extension<Users>,
+    Extension(users): Extension<Users>,
+    Extension(subscribed_users): Extension<SubscribedUsers>,
     Path(user_id): Path<i64>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
@@ -60,6 +68,21 @@ pub async fn follow_user_route(
             warn!("{e}");
             return Err(AppError::InternalServerError);
         }
+    }
+
+    let mut writer = users.write().await;
+
+    let user = match writer.get_mut(&auth_user.id) {
+        Some(user) => user,
+        None => return Ok(()),
+    };
+
+    for connection in user.senders.iter() {
+        let subscriber = Subscriber {
+            following: user.following.clone(),
+            sender: connection.clone(),
+        };
+        add_subscription(auth_user.id, Arc::new(subscriber), subscribed_users.clone()).await;
     }
 
     Ok(())
