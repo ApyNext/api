@@ -24,9 +24,8 @@ pub async fn follow_user_route(
     Path(user_id): Path<i64>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
-    let auth_user = match auth_user {
-        Some(user) => user,
-        None => return Err(AppError::YouHaveToBeConnectedToPerformThisAction),
+    let Some(auth_user) = auth_user else {
+        return Err(AppError::YouHaveToBeConnectedToPerformThisAction);
     };
 
     if auth_user.id == user_id {
@@ -72,12 +71,11 @@ pub async fn follow_user_route(
 
     let mut writer = users.write().await;
 
-    let user = match writer.get_mut(&auth_user.id) {
-        Some(user) => user,
-        None => return Ok(()),
+    let Some(user) = writer.get_mut(&auth_user.id) else {
+        return Ok(());
     };
 
-    for connection in user.senders.iter() {
+    for connection in &user.senders {
         let subscriber = Subscriber {
             following: user.following.clone(),
             sender: connection.clone(),

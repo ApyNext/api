@@ -34,7 +34,7 @@ pub async fn a2f_login_route(
     let token = decode_token(
         &a2f_token,
         &app_state.cipher,
-        &format!("{} /login/a2f", method),
+        &format!("{method} /login/a2f"),
     )?;
 
     Ok(cookies.add(Cookie::new("session", token)))

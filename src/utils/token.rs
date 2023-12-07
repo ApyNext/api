@@ -9,13 +9,13 @@ use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
-    exp: usize,
+    exp: i64,
     sub: String,
 }
 
 pub fn create_token(sub: String, exp_in: Duration, cipher: &Cipher) -> String {
     //Get expiration timestamp
-    let exp = (Utc::now() + exp_in).timestamp() as usize;
+    let exp = (Utc::now() + exp_in).timestamp();
 
     //Get serialized Claims
     let claims = json!(Claims { exp, sub }).to_string();
@@ -67,7 +67,7 @@ pub fn decode_token(token: &str, cipher: &Cipher, header: &str) -> Result<String
     };
 
     //Check if the token is expired
-    if claims.exp <= Utc::now().timestamp() as usize {
+    if claims.exp <= Utc::now().timestamp() {
         warn!("{} Expired token", header);
         return Err(AppError::ExpiredToken);
     }

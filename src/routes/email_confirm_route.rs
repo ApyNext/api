@@ -42,11 +42,11 @@ pub async fn email_confirm_route(
     let email = decode_token(
         &email_verification_token,
         &app_state.cipher,
-        &format!("{} /register/email_confirm", method),
+        &format!("{method} /register/email_confirm"),
     )?;
 
     //Check if the email is already used
-    match match sqlx::query!("SELECT id FROM users WHERE email = $1", email)
+    if match sqlx::query!("SELECT id FROM users WHERE email = $1", email)
         .fetch_optional(&app_state.pool)
         .await
     {
@@ -55,15 +55,12 @@ pub async fn email_confirm_route(
             warn!("{} /register/email_confirm Error while checking if email address already exists : {}", method, e);
             return Err(AppError::InternalServerError);
         }
-    } {
-        Some(_) => {
-            warn!(
-                "{} /register/email_confirm Email address `{}` already used",
-                method, email
-            );
-            return Err(AppError::EmailAddressAlreadyUsed);
-        }
-        None => (),
+    }.is_some() {
+        warn!(
+            "{} /register/email_confirm Email address `{}` already used",
+            method, email
+        );
+        return Err(AppError::EmailAddressAlreadyUsed);
     };
 
     let token = create_token(

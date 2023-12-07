@@ -40,52 +40,49 @@ pub async fn login_route(
     let username_or_email = register_user.username_or_email.to_lowercase();
     let password = hash_password(&register_user.password);
     drop(register_user);
-    let user = match username_or_email.contains("@") {
-        true => {
-            check_email_address(&username_or_email)?;
-            let user = match sqlx::query_as!(
-                UserForLoginA2FWithoutEmail,
-                "SELECT username, token FROM users WHERE email = $1 AND password = $2",
-                username_or_email,
-                password
-            )
-            .fetch_one(&app_state.pool)
-            .await
-            {
-                Ok(user) => user,
-                Err(e) => {
-                    warn!("{} /login Error while login : {}", method, e);
-                    return Err(AppError::IncorrectCredentials);
-                }
-            };
-            UserForLoginA2F {
-                username: user.username,
-                email: username_or_email,
-                token: user.token,
+    let user = if username_or_email.contains('@') {
+        check_email_address(&username_or_email)?;
+        let user = match sqlx::query_as!(
+            UserForLoginA2FWithoutEmail,
+            "SELECT username, token FROM users WHERE email = $1 AND password = $2",
+            username_or_email,
+            password
+        )
+        .fetch_one(&app_state.pool)
+        .await
+        {
+            Ok(user) => user,
+            Err(e) => {
+                warn!("{} /login Error while login : {}", method, e);
+                return Err(AppError::IncorrectCredentials);
             }
+        };
+        UserForLoginA2F {
+            username: user.username,
+            email: username_or_email,
+            token: user.token,
         }
-        false => {
-            check_username(&username_or_email)?;
-            let user = match sqlx::query_as!(
-                UserForLoginA2FWithoutUsername,
-                "SELECT email, token FROM users WHERE username = $1 AND password = $2",
-                username_or_email,
-                password
-            )
-            .fetch_one(&app_state.pool)
-            .await
-            {
-                Ok(auth_token) => auth_token,
-                Err(e) => {
-                    warn!("{} /login Error while login : {}", method, e);
-                    return Err(AppError::IncorrectCredentials);
-                }
-            };
-            UserForLoginA2F {
-                username: username_or_email,
-                email: user.email,
-                token: user.token,
+    } else {
+        check_username(&username_or_email)?;
+        let user = match sqlx::query_as!(
+            UserForLoginA2FWithoutUsername,
+            "SELECT email, token FROM users WHERE username = $1 AND password = $2",
+            username_or_email,
+            password
+        )
+        .fetch_one(&app_state.pool)
+        .await
+        {
+            Ok(auth_token) => auth_token,
+            Err(e) => {
+                warn!("{} /login Error while login : {}", method, e);
+                return Err(AppError::IncorrectCredentials);
             }
+        };
+        UserForLoginA2F {
+            username: username_or_email,
+            email: user.email,
+            token: user.token,
         }
     };
 
@@ -106,7 +103,7 @@ pub async fn login_route(
         "Vérifier la connexion",
         &format!("<p>Heureux de te revoir <b>@{}</b> ! Quelqu'un a tenté de se connecter à votre compte, si vous êtes à l’origine de cette action, cliquez <a href='{}/login/a2f?token={}'>ici</a> pour vous connecter, sinon vous pouvez ignorer cet email.</p>", user.username, FRONT_URL, a2f_token),
         email,
-        &format!("{} /login", method),
+        &format!("{method} /login"),
     )?;
 
     Ok(StatusCode::OK)

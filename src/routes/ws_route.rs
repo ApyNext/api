@@ -86,144 +86,133 @@ pub async fn handle_socket(
 
     let sender = Arc::new(RwLock::new(sender));
 
-    match auth_user {
-        Some(auth_user) => {
-            let users_followed = match sqlx::query_as!(
-                InnerAuthUser,
-                r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#,
-                auth_user.id
-            )
-            .fetch_all(&app_state.pool)
-            .await
-            {
-                Ok(users) => users,
-                Err(e) => {
-                    warn!("{e}");
-                    return;
-                }
-            };
-            let users_id_followed = users_followed.into_iter().map(|user| user.id).into_iter();
-
-            let users_id_followed = HashSet::from_iter(users_id_followed);
-
-            let following = Arc::new(RwLock::new(users_id_followed));
-
-            let mut writer = users.write().await;
-
-            if writer.contains_key(&auth_user.id) {
-                writer
-                    .get_mut(&auth_user.id)
-                    .unwrap()
-                    .senders
-                    .push(sender.clone());
-            } else {
-                let user = User {
-                    following: following.clone(),
-                    senders: vec![sender.clone()],
-                };
-
-                writer.insert(auth_user.id, user);
+    if let Some(auth_user) = auth_user {
+        let users_followed = match sqlx::query_as!(
+            InnerAuthUser,
+            r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#,
+            auth_user.id
+        )
+        .fetch_all(&app_state.pool)
+        .await
+        {
+            Ok(users) => users,
+            Err(e) => {
+                warn!("{e}");
+                return;
             }
+        };
+        let users_id_followed = users_followed.into_iter().map(|user| user.id);
 
-            drop(writer);
+        let users_id_followed: HashSet<i64> = users_id_followed.collect();
 
-            let user = Subscriber {
-                sender: sender.clone(),
-                following,
-            };
+        let following = Arc::new(RwLock::new(users_id_followed));
 
-            let user = Arc::new(user);
+        let mut writer = users.write().await;
 
-            let user_cloned = user.clone();
-
-            let reader = user_cloned.following.read().await;
-
-            let f = FuturesUnordered::new();
-
-            for id in reader.iter() {
-                f.push(add_subscription(
-                    *id,
-                    user.clone(),
-                    subscribed_users.clone(),
-                ));
-            }
-
-            f.collect::<Vec<()>>().await;
-
-            let length = users.read().await.len();
-
-            let event = match serde_json::to_string(&SseEvent {
-                name: "users_count_update".to_string(),
-                content: length.to_string(),
-            }) {
-                Ok(e) => e,
-                Err(e) => {
-                    warn!("{e}");
-                    disconnect(auth_user.id, user, users, subscribed_users).await;
-                    return;
-                }
-            };
-
-            let msg = Message::Text(event);
-
-            broadcast_msg(msg, users.clone()).await;
-
-            while let Some(msg) = receiver.next().await {
-                let msg = if let Ok(msg) = msg {
-                    msg
-                } else {
-                    break;
-                };
-
-                info!("{:?}", msg);
-            }
-            disconnect(auth_user.id, user, users, subscribed_users).await;
-        }
-        None => {
-            let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
-
+        if let std::collections::hash_map::Entry::Occupied(mut user) = writer.entry(auth_user.id) {
+            user.get_mut().senders.push(sender.clone());
+        } else {
             let user = User {
-                following: Arc::new(RwLock::new(HashSet::new())),
-                senders: vec![sender],
+                following: following.clone(),
+                senders: vec![sender.clone()],
             };
 
-            users.write().await.insert(id, user);
-            let length = users.read().await.len();
+            writer.insert(auth_user.id, user);
+        }
 
-            let length = length.to_string();
+        drop(writer);
 
-            let event = match serde_json::to_string(&SseEvent {
-                name: "users_count_update".to_string(),
-                content: length,
-            }) {
-                Ok(e) => e,
-                Err(e) => {
-                    warn!("{e}");
-                    users.write().await.remove(&id);
-                    return;
-                }
+        let user = Subscriber {
+            sender: sender.clone(),
+            following,
+        };
+
+        let user = Arc::new(user);
+
+        let user_cloned = user.clone();
+
+        let reader = user_cloned.following.read().await;
+
+        let f = FuturesUnordered::new();
+
+        for id in reader.iter() {
+            f.push(add_subscription(
+                *id,
+                user.clone(),
+                subscribed_users.clone(),
+            ));
+        }
+
+        f.collect::<Vec<()>>().await;
+
+        let length = users.read().await.len();
+
+        let event = match serde_json::to_string(&SseEvent {
+            name: "users_count_update".to_string(),
+            content: length.to_string(),
+        }) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("{e}");
+                disconnect(auth_user.id, user, users, subscribed_users).await;
+                return;
+            }
+        };
+
+        let msg = Message::Text(event);
+
+        broadcast_msg(msg, users.clone()).await;
+
+        while let Some(msg) = receiver.next().await {
+            let Ok(msg) = msg else {
+                break;
             };
 
-            let msg = Message::Text(event);
+            info!("{:?}", msg);
+        }
+        disconnect(auth_user.id, user, users, subscribed_users).await;
+    } else {
+        let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
+
+        let user = User {
+            following: Arc::new(RwLock::new(HashSet::new())),
+            senders: vec![sender],
+        };
+
+        users.write().await.insert(id, user);
+        let length = users.read().await.len();
+
+        let length = length.to_string();
+
+        let event = match serde_json::to_string(&SseEvent {
+            name: "users_count_update".to_string(),
+            content: length,
+        }) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("{e}");
+                users.write().await.remove(&id);
+                return;
+            }
+        };
+
+        let msg = Message::Text(event);
+
+        broadcast_msg(msg, users.clone()).await;
+
+        while let Some(msg) = receiver.next().await {
+            let Ok(msg) = msg else {
+                return;
+            };
+
+            info!("{:?}", msg);
 
             broadcast_msg(msg, users.clone()).await;
-
-            while let Some(msg) = receiver.next().await {
-                let msg = if let Ok(msg) = msg {
-                    msg
-                } else {
-                    return;
-                };
-
-                info!("{:?}", msg);
-
-                broadcast_msg(msg, users.clone()).await;
-            }
-
-            users.write().await.remove(&id);
-
-            info!("Disconnected {id}");
         }
+
+        users.write().await.remove(&id);
+
+        info!("Disconnected {id}");
     }
 }
 
@@ -233,12 +222,12 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
     let f = FuturesUnordered::new();
 
     for (_, senders) in reader.iter() {
-        for sender in senders.senders.iter() {
+        for sender in &senders.senders {
             f.push({
                 let msg = msg.clone();
                 async move {
                     match sender.write().await.send(msg).await {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => warn!("{e}"),
                     };
                 }
@@ -250,16 +239,15 @@ pub async fn broadcast_msg(msg: Message, users: Users) {
 }
 
 pub async fn remove_from_users(id: i64, users: Users, user: Arc<Subscriber>) {
-    match users.write().await.get_mut(&id) {
-        Some(senders) => {
-            for (i, sender) in senders.senders.iter().enumerate() {
-                if Arc::ptr_eq(sender, &user.sender) {
-                    senders.senders.remove(i);
-                    break;
-                }
+    if let Some(senders) = users.write().await.get_mut(&id) {
+        for (i, sender) in senders.senders.iter().enumerate() {
+            if Arc::ptr_eq(sender, &user.sender) {
+                senders.senders.remove(i);
+                break;
             }
         }
-        None => warn!("User with id {id} is not is the users Vec"),
+    } else {
+        warn!("User with id {id} is not is the users Vec");
     };
 }
 

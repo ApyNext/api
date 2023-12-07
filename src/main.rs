@@ -30,7 +30,7 @@ use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_ex
 use hyper::header::HeaderValue;
 use hyper::http::Method;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
-use middleware::logger_middleware::logger_middleware;
+use middleware::logger::logger;
 use routes::a2f_login_route::a2f_login_route;
 use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
@@ -197,7 +197,7 @@ async fn main() {
         .route("/ws", get(ws_route))
         .route("/@:id/follow", post(follow_user_route))
         .layer(cors)
-        .layer(axum_middleware::from_fn(logger_middleware))
+        .layer(axum_middleware::from_fn(logger))
         .layer(Extension(Users::default()))
         .layer(Extension(SubscribedUsers::default()))
         .with_state(app_state);
@@ -205,7 +205,7 @@ async fn main() {
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 
     tokio::select! {
-        _ = delete_not_activated_expired_accounts(&pool) => {
+        () = delete_not_activated_expired_accounts(&pool) => {
             warn!("This should never happen");
         },
         _ = serve_router => {}

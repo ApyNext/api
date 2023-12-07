@@ -51,7 +51,7 @@ pub async fn register_route(
     }
 
     //Check if email is already used
-    match match sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
+    if match sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
         .fetch_optional(&app_state.pool)
         .await
     {
@@ -63,19 +63,18 @@ pub async fn register_route(
             );
             return Err(AppError::InternalServerError);
         }
-    } {
-        Some(_) => {
-            warn!(
-                "{} /register Email address `{}` already used",
-                method, register_user.email
-            );
-            return Err(AppError::EmailAddressAlreadyUsed);
-        }
-        None => (),
+    }
+    .is_some()
+    {
+        warn!(
+            "{} /register Email address `{}` already used",
+            method, register_user.email
+        );
+        return Err(AppError::EmailAddressAlreadyUsed);
     };
 
     //Check if username is already used
-    match match sqlx::query!(
+    if match sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         register_user.username
     )
@@ -90,15 +89,14 @@ pub async fn register_route(
             );
             return Err(AppError::InternalServerError);
         }
-    } {
-        Some(_) => {
-            warn!(
-                "{} /register Username `{}` already used",
-                method, register_user.username
-            );
-            return Err(AppError::UsernameAlreadyUsed);
-        }
-        None => (),
+    }
+    .is_some()
+    {
+        warn!(
+            "{} /register Username `{}` already used",
+            method, register_user.username
+        );
+        return Err(AppError::UsernameAlreadyUsed);
     };
 
     let email_confirm_token = create_token(
@@ -107,12 +105,9 @@ pub async fn register_route(
         &app_state.cipher,
     );
 
-    match sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
-        Ok(_) => (),
-        Err(e) => {
-            warn!("{} /register {}", method, e);
-            return Err(AppError::InternalServerError);
-        }
+    if let Err(e) = sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
+        warn!("{} /register {}", method, e);
+        return Err(AppError::InternalServerError);
     };
 
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
@@ -122,7 +117,7 @@ pub async fn register_route(
         "Vérification d'email",
         &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer si vous utilisez la version web ou copier coller ce code <div><code>{}</code></div> dans l'application mobile ou de bureau, sinon vous pouvez ignorer cet email.</p>", register_user.username, FRONT_URL, email_confirm_token, email_confirm_token),
         email,
-        &format!("{} /register", method),
+        &format!("{method} /register"),
     )?;
 
     Ok(StatusCode::OK)
