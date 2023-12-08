@@ -34,10 +34,9 @@ pub async fn add_subscription(
     subscribed_users: SubscribedUsers,
 ) {
     if subscribed_users.read().await.contains_key(&id) {
-        let u = Arc::new(RwLock::new(SubscribedUser {
-            id,
-            subscribers: Arc::new(RwLock::new(HashSet::from([subscriber]))),
-        }));
+        let subscribed_user =
+            SubscribedUser::new(id, Arc::new(RwLock::new(HashSet::from([subscriber]))));
+        let u = Arc::new(RwLock::new(subscribed_user));
         subscribed_users.write().await.insert(id, u);
     } else {
         let reader = subscribed_users.read().await;
@@ -112,20 +111,14 @@ pub async fn handle_socket(
         if let std::collections::hash_map::Entry::Occupied(mut user) = writer.entry(auth_user.id) {
             user.get_mut().senders.push(sender.clone());
         } else {
-            let user = User {
-                following: following.clone(),
-                senders: vec![sender.clone()],
-            };
+            let user = User::new(following.clone(), vec![sender.clone()]);
 
             writer.insert(auth_user.id, user);
         }
 
         drop(writer);
 
-        let user = Subscriber {
-            sender: sender.clone(),
-            following,
-        };
+        let user = Subscriber::new(sender.clone(), following);
 
         let user = Arc::new(user);
 
@@ -174,10 +167,7 @@ pub async fn handle_socket(
     } else {
         let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-        let user = User {
-            following: Arc::new(RwLock::new(HashSet::new())),
-            senders: vec![sender],
-        };
+        let user = User::new(Arc::new(RwLock::new(HashSet::new())), vec![sender]);
 
         users.write().await.insert(id, user);
         let length = users.read().await.len();

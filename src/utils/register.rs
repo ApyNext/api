@@ -25,7 +25,6 @@ pub fn send_html_message(
     subject: &str,
     msg: &str,
     to: Address,
-    header: &str,
 ) -> Result<(), AppError> {
     match smtp_client.send(
         &Message::builder()
@@ -44,7 +43,7 @@ pub fn send_html_message(
     ) {
         Ok(_) => Ok(()),
         Err(e) => {
-            warn!("{} Error while sending email : {}", header, e);
+            warn!("Error while sending email : {}", e);
             Err(AppError::EmailSendError)
         }
     }

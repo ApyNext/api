@@ -45,7 +45,7 @@ where
             }
         }
         .to_string();
-        match match sqlx::query_as!(
+        if let Some(user) = match sqlx::query_as!(
             InnerAuthUser,
             "SELECT id FROM users WHERE token = $1 AND email_verified = TRUE",
             token
@@ -59,8 +59,9 @@ where
                 return Err(AppError::InternalServerError);
             }
         } {
-            Some(user) => Ok(AuthUser(Some(user))),
-            None => return Ok(AuthUser(None)),
+            Ok(AuthUser(Some(user)))
+        } else {
+            Ok(AuthUser(None))
         }
     }
 }

@@ -45,14 +45,26 @@ pub struct AppState {
     cipher: Cipher,
 }
 
-pub struct SubscribedUser {
+struct SubscribedUser {
     id: i64,
     subscribers: Subscribers,
+}
+
+impl SubscribedUser {
+    fn new(id: i64, subscribers: Subscribers) -> Self {
+        SubscribedUser { id, subscribers }
+    }
 }
 
 pub struct Subscriber {
     sender: UserConnection,
     following: Following,
+}
+
+impl Subscriber {
+    fn new(sender: UserConnection, following: Following) -> Self {
+        Subscriber { sender, following }
+    }
 }
 
 impl Eq for Subscriber {}
@@ -72,6 +84,12 @@ impl Hash for Subscriber {
 pub struct User {
     following: Following,
     senders: Vec<UserConnection>,
+}
+
+impl User {
+    fn new(following: Following, senders: Vec<UserConnection>) -> Self {
+        User { following, senders }
+    }
 }
 
 const FRONT_URL: &str = "https://apynext.creativeblogger.org";

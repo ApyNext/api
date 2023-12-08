@@ -1,6 +1,7 @@
 use axum::response::{IntoResponse, Response};
 use hyper::StatusCode;
 
+#[derive(Debug)]
 pub enum AppError {
     //Token decoding errors
     InvalidToken,
