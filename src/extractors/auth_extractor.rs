@@ -45,20 +45,17 @@ where
             }
         }
         .to_string();
-        if let Some(user) = match sqlx::query_as!(
+        if let Some(user) = sqlx::query_as!(
             InnerAuthUser,
             "SELECT id FROM users WHERE token = $1 AND email_verified = TRUE",
             token
         )
         .fetch_optional(&app_state.pool)
         .await
-        {
-            Ok(user) => user,
-            Err(e) => {
-                warn!("{}", e);
-                return Err(AppError::InternalServerError);
-            }
-        } {
+        .map_err(|e| {
+            warn!("Error getting auth user from database : {e}");
+            AppError::internal_server_error()
+        })? {
             Ok(AuthUser(Some(user)))
         } else {
             Ok(AuthUser(None))

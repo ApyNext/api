@@ -1,6 +1,7 @@
 use crate::utils::app_error::AppError;
 use base64::{engine::general_purpose, Engine};
 use chrono::{Duration, Utc};
+use hyper::StatusCode;
 use libaes::Cipher;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -36,40 +37,30 @@ impl Token {
 
     pub fn decode(token: &str, cipher: &Cipher) -> Result<String, AppError> {
         //Decode datas
-        let encyrpted_decoded = match general_purpose::STANDARD.decode(token) {
-            Ok(result) => result,
-            Err(e) => {
-                warn!("Error while decoding token : {}", e);
-                return Err(AppError::InvalidToken);
-            }
-        };
+        let encyrpted_decoded = general_purpose::STANDARD.decode(token).map_err(|e| {
+            warn!("Error decoding token : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Token invalide."))
+        })?;
         //Decrypt datas
         let nonce = &encyrpted_decoded[..16];
         let datas = &encyrpted_decoded[16..];
         let decrypted = cipher.cbc_decrypt(nonce, datas);
-        let string_decrypted = match String::from_utf8(decrypted) {
-            Ok(result) => result,
-            Err(e) => {
-                warn!("Error while decrypting token : {}", e);
-                return Err(AppError::InvalidToken);
-            }
-        };
+        let string_decrypted = String::from_utf8(decrypted).map_err(|e| {
+            warn!("Error decrypting token : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Token invalide."))
+        })?;
 
         //Get claims
-        let claims: Token = match serde_json::from_str(&string_decrypted) {
-            Ok(claims) => claims,
-            Err(e) => {
-                warn!("Error while deserializing token to Claims : {}", e);
-                return Err(AppError::InvalidToken);
-            }
-        };
-
+        let token: Token = serde_json::from_str(&string_decrypted).map_err(|e| {
+            warn!("Error deserializing token `{string_decrypted}` : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Token invalide."))
+        })?;
         //Check if the token is expired
-        if claims.exp <= Utc::now().timestamp() {
+        if token.exp <= Utc::now().timestamp() {
             warn!("Expired token");
-            return Err(AppError::ExpiredToken);
+            return Err(AppError::new(StatusCode::FORBIDDEN, Some("Token expiré.")));
         }
 
-        Ok(claims.sub)
+        Ok(token.sub)
     }
 }

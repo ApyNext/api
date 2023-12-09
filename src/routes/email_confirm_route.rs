@@ -4,6 +4,7 @@ use axum::extract::State;
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
 use chrono::Duration;
+use hyper::StatusCode;
 use rand::distributions::{Alphanumeric, DistString};
 use rand::thread_rng;
 use tracing::warn;
@@ -18,37 +19,38 @@ pub async fn email_confirm_route(
 ) -> Result<CookieJar, AppError> {
     if body.is_empty() {
         warn!("Token missing");
-        return Err(AppError::TokenMissing);
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Token de confirmation d'email manquant."),
+        ));
     }
-    let email_verification_token = match urlencoding::decode(&body) {
-        Ok(token) => token,
-        Err(e) => {
-            warn!("Error while decoding token : {}", e);
-            return Err(AppError::InvalidToken);
-        }
-    }
-    .to_string();
+    let email_verification_token = urlencoding::decode(&body)
+        .map_err(|e| {
+            warn!("Error URL decoding email confirmation token : {e}");
+            AppError::new(
+                StatusCode::FORBIDDEN,
+                Some("Token de confirmation d'email invalide."),
+            )
+        })?
+        .to_string();
 
     let email = Token::decode(&email_verification_token, &app_state.cipher)?;
 
     //Check if the email is already used
-    if match sqlx::query!("SELECT id FROM users WHERE email = $1", email)
+    if sqlx::query!("SELECT id FROM users WHERE email = $1", email)
         .fetch_optional(&app_state.pool)
         .await
+        .map_err(|e| {
+            warn!("Error checking if the email `{email}` already exists in the database : {e}");
+            AppError::internal_server_error()
+        })?
+        .is_some()
     {
-        Ok(result) => result,
-        Err(e) => {
-            warn!(
-                "Error while checking if email address already exists : {}",
-                e
-            );
-            return Err(AppError::InternalServerError);
-        }
-    }
-    .is_some()
-    {
-        warn!("Email address `{}` already used", email);
-        return Err(AppError::EmailAddressAlreadyUsed);
+        warn!("Email address `{email}` already used");
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Email déjà utilisé."),
+        ));
     };
 
     let token = Token::new(
@@ -57,7 +59,7 @@ pub async fn email_confirm_route(
         &app_state.cipher,
     );
 
-    match sqlx::query!(
+    sqlx::query!(
         "UPDATE users SET email = $1, email_verified = TRUE, token = $2 WHERE email = $3;",
         email,
         token,
@@ -65,11 +67,10 @@ pub async fn email_confirm_route(
     )
     .execute(&app_state.pool)
     .await
-    {
-        Ok(_) => Ok(cookies.add(Cookie::new("session", token))),
-        Err(e) => {
-            warn!("Error while verifying account : {}", e);
-            Err(AppError::InternalServerError)
-        }
-    }
+    .map_err(|e| {
+        warn!("Error validating account : {}", e);
+        AppError::internal_server_error()
+    })?;
+
+    Ok(cookies.add(Cookie::new("session", token)))
 }

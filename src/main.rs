@@ -183,13 +183,16 @@ async fn main() {
         .expect("Failed to run migrations");
 
     let smtp_client = SmtpTransport::relay(&email_smtp_server)
-        .unwrap()
+        .expect("Error while creating SMTP client")
         .credentials(Credentials::new(email, email_password))
         .build();
 
     drop(email_smtp_server);
 
-    if smtp_client.test_connection().unwrap() {
+    if let Err(e) = smtp_client.test_connection() {
+        warn!("Error while testing connection to the SMTP server : {e}");
+        return;
+    } else {
         info!("Connexion SMTP effectuée avec succès !");
     }
 

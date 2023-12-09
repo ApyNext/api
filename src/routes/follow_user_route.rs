@@ -4,6 +4,7 @@ use axum::{
     extract::{Path, State},
     Extension,
 };
+use hyper::StatusCode;
 use tracing::{info, warn};
 
 use crate::{
@@ -25,15 +26,22 @@ pub async fn follow_user_route(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
     let Some(auth_user) = auth_user else {
-        return Err(AppError::YouHaveToBeConnectedToPerformThisAction);
+        warn!("Not connected");
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Tu dois être connecté pour effectuer cette action."),
+        ));
     };
 
     if auth_user.id == user_id {
-        info!("{} tried to follow himself", auth_user.id);
-        return Err(AppError::YouCannotFollowYourself);
+        warn!("{} tried to follow himself", auth_user.id);
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Tu ne peux pas te suivre toi-même."),
+        ));
     }
 
-    let count = match sqlx::query_as!(
+    let count = sqlx::query_as!(
         Count,
         r#"SELECT COUNT(*) as "total!" FROM follow WHERE follower_id = $1 AND followed_id = $2"#,
         auth_user.id,
@@ -41,33 +49,36 @@ pub async fn follow_user_route(
     )
     .fetch_one(&app_state.pool)
     .await
-    {
-        Ok(count) => count,
-        Err(e) => {
-            warn!("{e}");
-            return Err(AppError::InternalServerError);
-        }
-    };
+    .map_err(|e| {
+        warn!(
+            "Error checking follow from `{}` to `{}` : {}",
+            auth_user.id, user_id, e
+        );
+        AppError::internal_server_error()
+    })?;
 
     if count.total != 0 {
         info!("{} already following {}", auth_user.id, user_id);
-        return Err(AppError::YouAreAlreadyFollowingThisUser);
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Tu suis déjà cet utilisateur."),
+        ));
     }
 
-    match sqlx::query!(
+    sqlx::query!(
         "INSERT INTO follow (follower_id, followed_id) VALUES ($1, $2)",
         auth_user.id,
         user_id
     )
     .execute(&app_state.pool)
     .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            warn!("{e}");
-            return Err(AppError::InternalServerError);
-        }
-    }
+    .map_err(|e| {
+        warn!(
+            "Error creating follow from `{}` to `{}` : {}",
+            auth_user.id, user_id, e
+        );
+        AppError::internal_server_error()
+    })?;
 
     let mut writer = users.write().await;
 

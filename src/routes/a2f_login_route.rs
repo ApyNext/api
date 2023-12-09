@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
+use hyper::StatusCode;
 use tracing::warn;
 
 use crate::{
@@ -15,19 +16,19 @@ pub async fn a2f_login_route(
     cookies: CookieJar,
     body: String,
 ) -> Result<CookieJar, AppError> {
-    let a2f_token = body;
-    if a2f_token.is_empty() {
+    if body.is_empty() {
         warn!("Token missing");
-        return Err(AppError::TokenMissing);
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Token de vérification d'email manquant."),
+        ));
     }
-    let a2f_token = match urlencoding::decode(&a2f_token) {
-        Ok(token) => token,
-        Err(e) => {
-            warn!("Error while decoding token : {}", e);
-            return Err(AppError::InvalidToken);
-        }
-    }
-    .to_string();
+    let a2f_token = urlencoding::decode(&body)
+        .map_err(|e| {
+            warn!("Error URL decoding token : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Token invalide."))
+        })?
+        .to_string();
 
     let token = Token::decode(&a2f_token, &app_state.cipher)?;
 

@@ -22,67 +22,72 @@ pub async fn register_route(
     register_user.email = register_user.email.to_lowercase();
     check_register_infos(&register_user)?;
 
-    let email = match register_user.email.parse::<Address>() {
-        Ok(email) => email,
-        Err(e) => {
-            warn!("Cannot parse email : {e}");
-            return Err(AppError::InvalidEmail);
-        }
-    };
+    let email = register_user.email.parse::<Address>().map_err(|e| {
+        warn!("Cannot parse email `{}` : {}", register_user.email, e);
+        AppError::new(StatusCode::FORBIDDEN, Some("Email invalide."))
+    })?;
 
     let password = hash_password(&register_user.password);
 
-    let birthdate = match OffsetDateTime::from_unix_timestamp(register_user.birthdate) {
-        Ok(birthdate) => birthdate,
-        Err(e) => {
-            warn!("Invalid birthdate : {}", e);
-            return Err(AppError::InvalidBirthdate);
-        }
-    };
+    const INVALID_BIRTHDATE: Option<&str> = Some("Date de naissance invalide");
+
+    let birthdate = OffsetDateTime::from_unix_timestamp(register_user.birthdate).map_err(|e| {
+        warn!("Invalid birthdate `{}` : {}", register_user.birthdate, e);
+        AppError::new(StatusCode::FORBIDDEN, INVALID_BIRTHDATE)
+    })?;
 
     if birthdate.year() < 1900 || birthdate > OffsetDateTime::now_utc() {
         warn!("La date de naissance doit être située entre 1900 et maintenant.");
-        return Err(AppError::InvalidBirthdate);
+        return Err(AppError::new(StatusCode::FORBIDDEN, INVALID_BIRTHDATE));
     }
 
     //Check if email is already used
-    if match sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
+    if sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
         .fetch_optional(&app_state.pool)
         .await
-    {
-        Ok(result) => result,
-        Err(e) => {
+        .map_err(|e| {
             warn!(
-                "Error while checking if email address already exists : {}",
-                e
+                "Error checking if the email `{}` exists in the database : {}",
+                register_user.email, e
             );
-            return Err(AppError::InternalServerError);
-        }
-    }
-    .is_some()
+            AppError::internal_server_error()
+        })?
+        .is_some()
     {
-        warn!("Email address `{}` already used", register_user.email);
-        return Err(AppError::EmailAddressAlreadyUsed);
+        warn!(
+            "Email `{}` already exists in the database",
+            register_user.email
+        );
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Email déjà utilisé."),
+        ));
     };
 
     //Check if username is already used
-    if match sqlx::query!(
+    if sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         register_user.username
     )
     .fetch_optional(&app_state.pool)
     .await
-    {
-        Ok(result) => result,
-        Err(e) => {
-            warn!("Error while checking if username already exists : {}", e);
-            return Err(AppError::InternalServerError);
-        }
-    }
+    .map_err(|e| {
+        warn!(
+            "Error checking if the username `{}` already exists in the database : {}",
+            register_user.username, e
+        );
+        AppError::internal_server_error()
+    })?
     .is_some()
     {
-        warn!("Username `{}` already used", register_user.username);
-        return Err(AppError::UsernameAlreadyUsed);
+        warn!(
+            "Username `{}` already exists in the database",
+            register_user.username
+        );
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Nom d'utilisateur déjà utilisé."),
+        ));
     };
 
     let email_confirm_token = Token::new(
@@ -91,11 +96,10 @@ pub async fn register_route(
         &app_state.cipher,
     );
 
-    if let Err(e) = sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await {
-        warn!("Error creating account : {}", e);
-        return Err(AppError::InternalServerError);
-    };
-
+    sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await.map_err(|e| {
+        warn!("Error creating account for `{}` : {}", register_user.username, e);
+        AppError::new(StatusCode::INTERNAL_SERVER_ERROR, None::<String>)
+    })?;
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
 
     send_html_message(

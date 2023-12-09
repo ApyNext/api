@@ -40,7 +40,7 @@ pub async fn login_route(
     drop(register_user);
     let user = if username_or_email.contains('@') {
         check_email_address(&username_or_email)?;
-        let user = match sqlx::query_as!(
+        let user = sqlx::query_as!(
             UserForLoginA2FWithoutEmail,
             "SELECT username, token FROM users WHERE email = $1 AND password = $2",
             username_or_email,
@@ -48,13 +48,10 @@ pub async fn login_route(
         )
         .fetch_one(&app_state.pool)
         .await
-        {
-            Ok(user) => user,
-            Err(e) => {
-                warn!("Error while login : {}", e);
-                return Err(AppError::IncorrectCredentials);
-            }
-        };
+        .map_err(|e| {
+            warn!("Error getting user with email `{username_or_email}` from database : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Identifiants invalides."))
+        })?;
         UserForLoginA2F {
             username: user.username,
             email: username_or_email,
@@ -62,7 +59,7 @@ pub async fn login_route(
         }
     } else {
         check_username(&username_or_email)?;
-        let user = match sqlx::query_as!(
+        let user = sqlx::query_as!(
             UserForLoginA2FWithoutUsername,
             "SELECT email, token FROM users WHERE username = $1 AND password = $2",
             username_or_email,
@@ -70,13 +67,10 @@ pub async fn login_route(
         )
         .fetch_one(&app_state.pool)
         .await
-        {
-            Ok(auth_token) => auth_token,
-            Err(e) => {
-                warn!("Error while login : {}", e);
-                return Err(AppError::IncorrectCredentials);
-            }
-        };
+        .map_err(|e| {
+            warn!("Error getting user @{username_or_email} from database : {e}");
+            AppError::new(StatusCode::FORBIDDEN, Some("Identifiants invalides."))
+        })?;
         UserForLoginA2F {
             username: username_or_email,
             email: user.email,
@@ -88,13 +82,10 @@ pub async fn login_route(
 
     let a2f_token = urlencoding::encode(&a2f_token).to_string();
 
-    let email = match user.email.parse::<Address>() {
-        Ok(email) => email,
-        Err(e) => {
-            warn!("Cannot parse email : {}", e);
-            return Err(AppError::InvalidEmail);
-        }
-    };
+    let email = user.email.parse::<Address>().map_err(|e| {
+        warn!("Cannot parse email `{}` : {}", user.email, e);
+        AppError::new(StatusCode::FORBIDDEN, Some("Email invalide."))
+    })?;
 
     send_html_message(
         &app_state.smtp_client,
