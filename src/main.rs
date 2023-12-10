@@ -193,7 +193,7 @@ async fn main() {
         warn!("Error while testing connection to the SMTP server : {e}");
         return;
     } else {
-        info!("Connexion SMTP effectuée avec succès !");
+        info!("SMTP connection successful !");
     }
 
     let app_state = Arc::new(AppState {
