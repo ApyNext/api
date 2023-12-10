@@ -92,7 +92,7 @@ impl User {
     }
 }
 
-const FRONT_URL: &str = "https://apynext.creativeblogger.org";
+const FRONT_URL: &str = env!("FRONT_URL");
 type Subscribers = Arc<RwLock<HashSet<Arc<Subscriber>>>>;
 type Following = Arc<RwLock<HashSet<i64>>>;
 type SubscribedUsers = Arc<RwLock<HashMap<i64, Arc<RwLock<SubscribedUser>>>>>;
