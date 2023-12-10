@@ -37,15 +37,14 @@ pub async fn email_confirm_route(
     let email = Token::decode(&email_verification_token, &app_state.cipher)?;
 
     //Check if the email is already used
-    if sqlx::query!("SELECT id FROM users WHERE email = $1", email)
+    let result = sqlx::query!("SELECT id FROM users WHERE email = $1", email)
         .fetch_optional(&app_state.pool)
         .await
         .map_err(|e| {
             warn!("Error checking if the email `{email}` already exists in the database : {e}");
             AppError::internal_server_error()
-        })?
-        .is_some()
-    {
+        })?;
+    if result.is_some() {
         warn!("Email address `{email}` already used");
         return Err(AppError::new(
             StatusCode::FORBIDDEN,

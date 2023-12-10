@@ -63,7 +63,7 @@ Renvoie :
 ### Vérifier l'email (lien envoyé par email)
 Requête : `POST /register/email_confirm`
 
-Body (châine de caractères) :
+Body (chaîne de caractères) :
 - token de confirmation d'email
 
 Renvoie :

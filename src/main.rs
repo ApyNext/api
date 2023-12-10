@@ -37,7 +37,7 @@ use routes::login_route::login_route;
 use routes::ok_route::ok_route;
 use routes::register_route::register_route;
 use sqlx::PgPool;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 pub struct AppState {
     pool: PgPool,
@@ -192,9 +192,8 @@ async fn main() {
     if let Err(e) = smtp_client.test_connection() {
         warn!("Error while testing connection to the SMTP server : {e}");
         return;
-    } else {
-        info!("SMTP connection successful !");
     }
+    info!("SMTP connection successful !");
 
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
@@ -207,7 +206,8 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-        .allow_origin(front_url);
+        .allow_origin(front_url)
+        .allow_headers(Any);
 
     let router = Router::new()
         .route("/", get(ok_route))

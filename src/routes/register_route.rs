@@ -29,16 +29,17 @@ pub async fn register_route(
 
     let password = hash_password(&register_user.password);
 
-    const INVALID_BIRTHDATE: Option<&str> = Some("Date de naissance invalide");
-
     let birthdate = OffsetDateTime::from_unix_timestamp(register_user.birthdate).map_err(|e| {
         warn!("Invalid birthdate `{}` : {}", register_user.birthdate, e);
-        AppError::new(StatusCode::FORBIDDEN, INVALID_BIRTHDATE)
+        AppError::new(StatusCode::FORBIDDEN, Some("Date de naissance invalide."))
     })?;
 
     if birthdate.year() < 1900 || birthdate > OffsetDateTime::now_utc() {
         warn!("La date de naissance doit être située entre 1900 et maintenant.");
-        return Err(AppError::new(StatusCode::FORBIDDEN, INVALID_BIRTHDATE));
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some("Date de naissance invalide."),
+        ));
     }
 
     //Check if email is already used
