@@ -16,4 +16,12 @@ pub struct User {
     pub updated_at: OffsetDateTime,
     pub email_verified: bool,
     pub is_banned: bool,
+    pub permission: UserPermission,
+}
+
+#[derive(Deserialize)]
+pub enum UserPermission {
+    User = 0,
+    Moderator = 1,
+    Administrator = 2,
 }

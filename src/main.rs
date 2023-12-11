@@ -81,14 +81,24 @@ impl Hash for Subscriber {
     }
 }
 
+pub enum RealTimeEvent {
+    UserStatusChange(Vec<i64>),
+}
+
 pub struct User {
     following: Following,
     senders: Vec<UserConnection>,
+    //TODO implement events system when more basic functionnalities will be implemented
+    subscribed_events: HashSet<RealTimeEvent>,
 }
 
 impl User {
     fn new(following: Following, senders: Vec<UserConnection>) -> Self {
-        User { following, senders }
+        User {
+            following,
+            senders,
+            subscribed_events: HashSet::new(),
+        }
     }
 }
 
