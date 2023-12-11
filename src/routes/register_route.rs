@@ -99,7 +99,7 @@ pub async fn register_route(
 
     sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await.map_err(|e| {
         warn!("Error creating account for `{}` : {}", register_user.username, e);
-        AppError::new(StatusCode::INTERNAL_SERVER_ERROR, None::<String>)
+        AppError::internal_server_error()
     })?;
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
 

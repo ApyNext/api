@@ -15,32 +15,29 @@ L'API officielle de ApyNext
 
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser le fichier docker-compose.yml de ce projet :
-
 1) Installez Docker sur votre machine (plus d'informations [ici](https://www.docker.com/)).
 2) Installez également Docker compose (plus d'informations [ici](https://docs.docker.com/compose/install/)).
 3) Exécutez cette commande en remplaçant `<mot de passe>` par le mot de passe que vous souhaitez pour la BDD :
 ```bash
 POSTGRES_PASSWORD=`<mot de passe>` docker compose up -d
 ```
-- Installez la CLI de Shuttle, plus d'infos [ici](https://docs.shuttle.rs/introduction/installation).
-- Et la CLI de SQLx, plus d'infos [ici](https://docs.rs/crate/sqlx-cli/latest).
-- Renommez (ou copiez) le fichier Secrets.toml.example en Secrets.toml et renseignez les informations manquantes
+- Renommez (ou copiez) le fichier .env.example en .env et renseignez les informations manquantes
 
 # Lancer l'API
-Exécutez tout d'abord ces deux commandes :
+Pour lancer l'API localement, il suffit d'exécuter la commande
 ```bash
-cargo sqlx migrate run --database-url <l'URL de la BDD>
+cargo run
 ```
-```bash
-cargo sqlx prepare --database-url <l'URL de la BDD>
-```
-Puis pour lancer l'API localement, il suffit d'exécuter la commandes
-```bash
-cargo shuttle run
-```
-Si vous voulez déployer l'API, vous pouvez vous [créer un compte Shuttle](https://console.shuttle.rs/login) puis suivre les indications disponibles [ici](https://console.shuttle.rs/new-project) (sauf l'installation de la CLI, car vous l'avez déjà fait).
 
 # Documentation
+
+## Route de test
+
+Requête : `GET /`
+
+Renvoie :
+- Code de status 200 et le message "Ok"
+
 ## Gestion de compte
 ### Créer un compte
 Requête : `POST /register`
@@ -68,7 +65,7 @@ Body (chaîne de caractères) :
 
 Renvoie :
 - Code de status `200 Ok` et un token de connexion stocké comme cookie
-- Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
+- Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré par exemple
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
 
 ### Se connecter
@@ -86,6 +83,7 @@ Renvoie :
 - Code de status `403 Forbidden` et le message d'erreur lors d'une erreur client
 - Code de status `415 Unsupported Media Type` quand le header `Content-Type: application/json` est manquant
 - Code de status `422 Unprocessable Entity` lorsqu'un field JSON est manquant
+- Code de status `500 Internal Server Error` lors d'une erreur serveur
 
 ### A2F (lien envoyé par email)
 Requête : `POST /login/a2f`
@@ -97,8 +95,19 @@ Renvoie :
 - Code de status `200 Ok` et un token de connexion stocké comme cookie
 - Code de status `403 Forbidden` et le message d'erreur quand le token est manquant, invalide ou expiré
 
-### WebSockets
+## WebSockets
 Requête : `GET /ws`
 
 Headers :
-- Autorisation Bearer (facultative)
+- Token Bearer (facultatif)
+
+## Suivre un utilisateur
+Requête : `POST /:id/follow`
+
+Headers :
+- Token Bearer
+
+Renvoie :
+- Code de status `200 Ok`
+- Code de status `403 Forbidden` avec le message d'erreur lors d'une erreur client
+- Code de status `500 Internal Server Error` lors d'une erreur serveur

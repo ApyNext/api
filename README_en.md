@@ -21,25 +21,21 @@ The official API of ApyNext
 ```bash
 POSTGRES_PASSWORD="<password>" docker compose up -d
 ```
-- Install Shuttle's CLI, more infos [here](https://docs.shuttle.rs/introduction/installation).
-- Install SQLx' CLI, more infos [here](https://docs.rs/crate/sqlx-cli/latest).
-- Rename (or copy) the file Secrets.toml.example in Secrets.toml and enter the missing informations
+- Rename (or copy) the file .env.example in .env and enter the missing informations
 
 # Launch the API
-First of all run the two following commands :
+To launch the API locally you can run
 ```bash
-cargo sqlx migrate run --database-url <DB URL>
+cargo run
 ```
-```bash
-cargo sqlx prepare --database-url <DB URLs>
-```
-Then to launch the API locally you can run
-```bash
-cargo shuttle run
-```
-If you want to deploy the API, you can [create a Shuttle account](https://console.shuttle.rs/login) then follow the steps listed [here](https://console.shuttle.rs/new-project) (you can skip the installation of the CLI, you already did it).
 
 # Documentation
+## Test route
+Request : `GET /`
+
+Returns :
+- Status code `200 Ok` and the message "Ok"
+
 ## Account management
 ### Create an account
 Request : `POST /register`
@@ -67,7 +63,7 @@ Body (string) :
 
 Returns :
 - Status code `200 Ok` and an auth token stored as a cookie
-- Status code `403 Forbidden` and the error message when the token is missing, invalid or expired
+- Status code `403 Forbidden` and the error message when the token is missing, invalid or expired for example
 - Status code `500 Internal Server Error` when a server error occurs
 
 ### Login
@@ -85,6 +81,7 @@ Returns :
 - Status code `403 Forbidden` and the error message when a client error occurs
 - Status code `415 Unsupported Media Type` when the header `Content-Type: application/json` is missing
 - Status code `422 Unprocessable Entity` when a JSON field is missing
+- Status code `500 Internal Server Error` when a server error occurs
 
 ### A2F (link sent by email)
 Request : `POST /login/a2f`
@@ -100,4 +97,15 @@ Returns :
 Requête : `GET /ws`
 
 Headers :
-- Bearer authorization (optional)
+- Bearer token (optional)
+
+### Follow an user
+Request : `POST /:id/follow`
+
+Headers :
+- Bearer token
+
+Returns :
+- Status code `200 Ok`
+- Status code `403 Forbidden` with the error message when a client error occurs
+- Status code `500 Internal Server Error` when a server error occurs
