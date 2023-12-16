@@ -86,7 +86,7 @@ pub async fn follow_user_route(
         return Ok(());
     };
 
-    for connection in &user.senders {
+    for connection in &user.connections {
         let subscriber = Subscriber::new(connection.clone(), user.following.clone());
         add_subscription(auth_user.id, Arc::new(subscriber), subscribed_users.clone()).await;
     }
