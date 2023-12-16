@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{hash_map::Entry, HashSet},
     sync::{atomic::Ordering, Arc},
 };
 
@@ -108,7 +108,7 @@ pub async fn handle_socket(
 
         let mut writer = users.write().await;
 
-        if let std::collections::hash_map::Entry::Occupied(mut user) = writer.entry(auth_user.id) {
+        if let Entry::Occupied(mut user) = writer.entry(auth_user.id) {
             user.get_mut().senders.push(sender.clone());
         } else {
             let user = User::new(following.clone(), vec![sender.clone()]);

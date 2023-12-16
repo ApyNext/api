@@ -1,4 +1,5 @@
 from rust:latest
+ARG FRONT_URL
 
 WORKDIR /app
 
