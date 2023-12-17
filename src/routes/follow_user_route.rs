@@ -8,11 +8,8 @@ use hyper::StatusCode;
 use tracing::{info, warn};
 
 use crate::{
-    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, SubscribedUsers,
-    Subscriber, Users,
+    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, EventTracker, Users,
 };
-
-use super::ws_route::add_subscription;
 
 pub struct Count {
     total: i64,
@@ -21,7 +18,7 @@ pub struct Count {
 pub async fn follow_user_route(
     AuthUser(auth_user): AuthUser,
     Extension(users): Extension<Users>,
-    Extension(subscribed_users): Extension<SubscribedUsers>,
+    Extension(event_tracker): Extension<EventTracker>,
     Path(user_id): Path<i64>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {

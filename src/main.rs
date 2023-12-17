@@ -54,11 +54,15 @@ pub enum RealTimeEvent {
 
 #[derive(Default, Clone)]
 pub struct EventTracker {
-    events: Arc<RwLock<HashMap<RealTimeEvent, Vec<UserConnection>>>>,
+    events: Arc<RwLock<HashMap<RealTimeEvent, Vec<Arc<RwLock<UserConnection>>>>>>,
 }
 
 impl EventTracker {
-    pub async fn subscribe(&self, event_type: RealTimeEvent, subscriber: UserConnection) {
+    pub async fn subscribe(
+        self: Arc<Self>,
+        event_type: RealTimeEvent,
+        subscriber: Arc<RwLock<UserConnection>>,
+    ) {
         match self.events.write().await.entry(event_type) {
             Entry::Occupied(mut entry) => {
                 let entry = entry.get_mut();
@@ -70,7 +74,11 @@ impl EventTracker {
         }
     }
 
-    pub async fn unsubscribe(&self, event_type: RealTimeEvent, subscriber: UserConnection) {
+    pub async fn unsubscribe(
+        self: Arc<Self>,
+        event_type: RealTimeEvent,
+        subscriber: Arc<RwLock<UserConnection>>,
+    ) {
         if let Entry::Occupied(mut entry) = self.events.write().await.entry(event_type) {
             let users = entry.get_mut();
             if users.len() == 1 {
@@ -104,7 +112,7 @@ pub struct User {
 
 impl User {
     fn new(connection: Arc<RwLock<UserConnection>>) -> Self {
-        User {
+        Self {
             connections: vec![connection],
         }
     }
