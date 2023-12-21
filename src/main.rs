@@ -49,7 +49,7 @@ pub struct AppState {
 #[derive(Eq, PartialEq, Hash)]
 pub enum RealTimeEvent {
     //with the ID of the followed user
-    NewPostNotification(i64),
+    NewPostNotification { id: i64 },
 }
 
 #[derive(Default, Clone)]
