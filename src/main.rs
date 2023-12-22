@@ -5,7 +5,7 @@ mod structs;
 mod utils;
 
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::env::var;
 use std::hash::Hash;
 use std::net::SocketAddr;
@@ -19,9 +19,10 @@ use axum::{
 };
 use axum::{Extension, Router};
 use futures_util::stream::SplitSink;
+use futures_util::SinkExt;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
-use routes::ws_route::{ws_route, WsEvent};
+use routes::ws_route::ws_route;
 
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::RwLock;
@@ -46,43 +47,40 @@ pub struct AppState {
     cipher: Cipher,
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone)]
 pub enum RealTimeEvent {
     //with the ID of the followed user
-    NewPostNotification { id: i64 },
+    NewPostNotification { user_id: i64 },
 }
 
 #[derive(Default, Clone)]
 pub struct EventTracker {
-    events: Arc<RwLock<HashMap<RealTimeEvent, Vec<Arc<RwLock<UserConnection>>>>>>,
+    events: Arc<RwLock<HashMap<RealTimeEvent, Vec<UserConnection>>>>,
 }
 
 impl EventTracker {
-    pub async fn subscribe(
-        self: Arc<Self>,
-        event_type: RealTimeEvent,
-        subscriber: Arc<RwLock<UserConnection>>,
-    ) {
+    pub async fn subscribe(&self, event_type: RealTimeEvent, subscriber: UserConnection) {
+        //Check if the event already exists
         match self.events.write().await.entry(event_type) {
+            //If it exists, add the connection to the subscribers of this event
             Entry::Occupied(mut entry) => {
                 let entry = entry.get_mut();
                 entry.push(subscriber);
             }
+            //If it doesn't exist yet, add the event to the list of events and add the connection to it
             Entry::Vacant(e) => {
                 e.insert(vec![subscriber]);
             }
         }
     }
 
-    pub async fn unsubscribe(
-        self: Arc<Self>,
-        event_type: RealTimeEvent,
-        subscriber: Arc<RwLock<UserConnection>>,
-    ) {
+    pub async fn unsubscribe(&self, event_type: RealTimeEvent, subscriber: UserConnection) {
         if let Entry::Occupied(mut entry) = self.events.write().await.entry(event_type) {
             let users = entry.get_mut();
             if users.len() == 1 {
-                entry.remove_entry();
+                if Arc::ptr_eq(&users[0], &subscriber) {
+                    entry.remove_entry();
+                }
                 return;
             }
             users.retain(|s| !Arc::ptr_eq(s, &subscriber));
@@ -91,34 +89,38 @@ impl EventTracker {
 
     pub async fn notify(&self, event_type: RealTimeEvent, content: String) {
         if let Some(connections) = self.events.read().await.get(&event_type) {
-            let event = match event_type {
-                RealTimeEvent::NewPostNotification(id) => {
-                    WsEvent::new("new_post_notification".to_string(), format!(""))
+            for connection in connections {
+                if let Err(e) = connection
+                    .write()
+                    .await
+                    .send(Message::Text(content.clone()))
+                    .await
+                {
+                    warn!("{e}");
                 }
-            };
-            for connection in connections {}
+            }
         }
     }
 }
 
-pub struct UserConnection {
-    subscribed_events: HashSet<RealTimeEvent>,
-    sender: SplitSink<WebSocket, Message>,
-}
-
 pub struct User {
-    connections: Vec<Arc<RwLock<UserConnection>>>,
+    connections: Vec<UserConnection>,
 }
 
 impl User {
-    fn new(connection: Arc<RwLock<UserConnection>>) -> Self {
+    pub fn new(connection: UserConnection) -> Self {
         Self {
             connections: vec![connection],
         }
     }
+
+    pub async fn add_connection(user: Arc<RwLock<Self>>, connection: UserConnection) {
+        user.write().await.connections.push(connection);
+    }
 }
 
 const FRONT_URL: &str = env!("FRONT_URL");
+type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
 type Users = Arc<RwLock<HashMap<i64, User>>>;
 static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
@@ -238,7 +240,7 @@ async fn main() {
         .route("/login", post(login_route))
         .route("/login/a2f", post(a2f_login_route))
         .route("/ws", get(ws_route))
-        .route("/@:id/follow", post(follow_user_route))
+        .route("/@:username/follow", post(follow_user_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger))
         .layer(Extension(Users::default()))

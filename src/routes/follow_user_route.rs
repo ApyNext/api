@@ -8,7 +8,8 @@ use hyper::StatusCode;
 use tracing::{info, warn};
 
 use crate::{
-    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, EventTracker, Users,
+    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, EventTracker,
+    RealTimeEvent, Users,
 };
 
 pub struct Count {
@@ -19,6 +20,8 @@ pub async fn follow_user_route(
     AuthUser(auth_user): AuthUser,
     Extension(users): Extension<Users>,
     Extension(event_tracker): Extension<EventTracker>,
+
+    //TODO change type from i64 to String
     Path(user_id): Path<i64>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
@@ -83,9 +86,11 @@ pub async fn follow_user_route(
         return Ok(());
     };
 
-    for connection in &user.connections {
-        let subscriber = Subscriber::new(connection.clone(), user.following.clone());
-        add_subscription(auth_user.id, Arc::new(subscriber), subscribed_users.clone()).await;
+    //TODO Not sure if that's a good idea...
+    for connection in user.connections.clone() {
+        event_tracker
+            .subscribe(RealTimeEvent::NewPostNotification { user_id }, connection)
+            .await;
     }
 
     Ok(())

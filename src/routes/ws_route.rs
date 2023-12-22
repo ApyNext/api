@@ -11,58 +11,45 @@ use axum::{
 
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
-use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    AppState, EventTracker, User, Users, NEXT_USER_ID,
+    AppState, EventTracker, RealTimeEvent, User, UserConnection, Users, NEXT_USER_ID,
 };
 
 #[derive(Serialize)]
-pub enum WsEvent {
-    NewPostNotification {
-        author_username: String,
-        content: String,
-    },
+pub struct WsEvent {
+    name: String,
+    content: String,
 }
 
-impl ToString for WsEvent {
-    fn to_string(&self) -> String {
-        match self {
-            Self::NewPostNotification {
-                author_username,
-                content,
-            } => json!({
-                "event": "new_post_notification",
-                "content": {
-                    "author": author_username,
-                    "content": content
-                }
-            })
-            .to_string(),
-        }
-    }
+#[derive(Serialize)]
+pub struct NewPostNotification {
+    author_username: String,
+    content: String,
 }
 
 pub async fn ws_route(
     ws: WebSocketUpgrade,
     AuthUser(auth_user): AuthUser,
     Extension(users): Extension<Users>,
-    Extension(subscribed_users): Extension<EventTracker>,
+    Extension(event_tracker): Extension<EventTracker>,
     State(app_state): State<Arc<AppState>>,
 ) -> Response {
-    ws.on_upgrade(|socket| handle_socket(socket, auth_user, users, subscribed_users, app_state))
+    ws.on_upgrade(|socket| handle_socket(socket, auth_user, users, event_tracker, app_state))
 }
 
 pub async fn handle_socket(
     socket: WebSocket,
     auth_user: Option<InnerAuthUser>,
     users: Users,
-    subscribed_users: EventTracker,
+    event_tracker: EventTracker,
     app_state: Arc<AppState>,
 ) {
+    let mut subscribed_events: HashSet<RealTimeEvent> = HashSet::default();
+
     let (sender, mut receiver) = socket.split();
 
     let sender = Arc::new(RwLock::new(sender));
@@ -82,43 +69,27 @@ pub async fn handle_socket(
                 return;
             }
         };
-        let users_id_followed = users_followed.into_iter().map(|user| user.id);
 
-        let users_id_followed: HashSet<i64> = users_id_followed.collect();
-
-        let following = Arc::new(RwLock::new(users_id_followed));
+        //TODO to that asynchronously
+        for user_followed in &users_followed {
+            let event_type = RealTimeEvent::NewPostNotification {
+                user_id: user_followed.id,
+            };
+            subscribed_events.insert(event_type.clone());
+            event_tracker.subscribe(event_type, sender.clone()).await;
+        }
 
         let mut writer = users.write().await;
 
         if let Entry::Occupied(mut user) = writer.entry(auth_user.id) {
             user.get_mut().connections.push(sender.clone());
         } else {
-            let user = User::new(vec![sender.clone()]);
+            let user = User::new(sender.clone());
 
             writer.insert(auth_user.id, user);
         }
 
         drop(writer);
-
-        let user = Subscriber::new(sender.clone(), following);
-
-        let user = Arc::new(user);
-
-        let user_cloned = user.clone();
-
-        let reader = user_cloned.following.read().await;
-
-        let f = FuturesUnordered::new();
-
-        for id in reader.iter() {
-            f.push(add_subscription(
-                *id,
-                user.clone(),
-                subscribed_users.clone(),
-            ));
-        }
-
-        f.collect::<Vec<()>>().await;
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
@@ -126,12 +97,21 @@ pub async fn handle_socket(
             };
 
             info!("{:?}", msg);
+
+            //TODO handle event
         }
-        disconnect(auth_user.id, user, users, subscribed_users).await;
+        disconnect(
+            auth_user.id,
+            sender,
+            subscribed_events,
+            users,
+            event_tracker,
+        )
+        .await;
     } else {
         let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-        let user = User::new(vec![sender]);
+        let user = User::new(sender);
 
         users.write().await.insert(id, user);
 
@@ -142,7 +122,7 @@ pub async fn handle_socket(
 
             info!("{:?}", msg);
 
-            broadcast_msg(msg, users.clone()).await;
+            //TODO handle event
         }
 
         users.write().await.remove(&id);
@@ -151,34 +131,28 @@ pub async fn handle_socket(
     }
 }
 
-pub async fn remove_from_users(id: i64, users: Users, user: Arc<Subscriber>) {
+pub async fn remove_from_users(id: i64, users: Users, user: UserConnection) {
     if let Some(senders) = users.write().await.get_mut(&id) {
-        for (i, sender) in senders.connections.iter().enumerate() {
-            if Arc::ptr_eq(sender, &user.sender) {
-                senders.connections.remove(i);
-                break;
-            }
-        }
+        senders
+            .connections
+            .retain(|sender| !Arc::ptr_eq(sender, &user));
     } else {
-        warn!("User with id {id} is not is the users Vec");
+        warn!("User with id {id} is not is `users`");
     };
 }
 
 pub async fn disconnect(
     id: i64,
-    user: Arc<Subscriber>,
+    user: UserConnection,
+    subscribed_events: HashSet<RealTimeEvent>,
     users: Users,
-    subscribed_users: EventTracker,
+    event_tracker: EventTracker,
 ) {
     info!("Disconnecting {}", id);
     let f = FuturesUnordered::new();
 
-    for id in user.following.read().await.iter() {
-        f.push(remove_subscription(
-            *id,
-            user.clone(),
-            subscribed_users.clone(),
-        ));
+    for event in subscribed_events {
+        f.push(event_tracker.unsubscribe(event, user.clone()));
     }
     tokio::join!(f.collect::<Vec<()>>(), remove_from_users(id, users, user));
     info!("User {} disconnected", id);
