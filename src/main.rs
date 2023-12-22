@@ -28,7 +28,7 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
-use hyper::header::{HeaderValue, OccupiedEntry};
+use hyper::header::HeaderValue;
 use hyper::http::Method;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use middleware::logger::logger;

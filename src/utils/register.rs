@@ -31,7 +31,7 @@ pub fn send_html_message(
         .send(
             &Message::builder()
                 .from(Mailbox {
-                    name: Some("ApyNext".to_string()),
+                    name: Some(env!("EMAIL_NAME").to_string()),
                     email: Address::new("email.confirmation", "creativeblogger.org").unwrap(),
                 })
                 .to(Mailbox {

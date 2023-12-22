@@ -106,7 +106,7 @@ pub async fn register_route(
     send_html_message(
         &app_state.smtp_client,
         "Vérification d'email",
-        &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si vous êtes à l’origine de cette action, cliquez <a href='{}/register/email_confirm?token={}'>ici</a> pour l'activer si vous utilisez la version web ou copier coller ce code <div><code>{}</code></div> dans l'application mobile ou de bureau, sinon vous pouvez ignorer cet email.</p>", register_user.username, FRONT_URL, email_confirm_token, email_confirm_token),
+        &format!("<p>Bienvenue <b>@{}</b> ! Un compte a été créé en utilisant cette adresse email, si tu es à l’origine de cette action, clique <a href='{FRONT_URL}{}?token={email_confirm_token}'>ici</a> pour l'activer.\nTu peux également copier-coller le token directement :<div><code>{email_confirm_token}</code></div>.\nSi tu n'es pas à l'origine de cette action, tu peux ignorer cet email.</p>", register_user.username, env!("EMAIL_CONFIRM_ROUTE")),
         email,
     )?;
 

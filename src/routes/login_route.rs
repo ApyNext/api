@@ -90,7 +90,7 @@ pub async fn login_route(
     send_html_message(
         &app_state.smtp_client,
         "Vérifier la connexion",
-        &format!("<p>Heureux de te revoir <b>@{}</b> ! Quelqu'un a tenté de se connecter à votre compte, si vous êtes à l’origine de cette action, cliquez <a href='{}/login/a2f?token={}'>ici</a> pour vous connecter, sinon vous pouvez ignorer cet email.</p>", user.username, FRONT_URL, a2f_token),
+        &format!("<p>Heureux de te revoir <b>@{}</b> !\nQuelqu'un a tenté de se connecter à ton compte, si tu es à l’origine de cette action, clique <a href='{FRONT_URL}{}?token={a2f_token}'>ici</a> pour te connecter.\nTu peux également copier-coller directement le token de connexion directement :<div><code>{a2f_token}<code><div>\nSi tu n'es pas à l'origine de cette action, tu peux ignorer cet email, nous te conseillons néanmoins de changer ton mot de passe.</p>", user.username, env!("A2F_ROUTE")),
         email,
     )?;
 
