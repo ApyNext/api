@@ -8,8 +8,9 @@ use hyper::StatusCode;
 use tracing::{info, warn};
 
 use crate::{
-    extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState, EventTracker,
-    RealTimeEvent, Users,
+    extractors::auth_extractor::AuthUser,
+    utils::{app_error::AppError, register::Record},
+    AppState, EventTracker, RealTimeEvent, Users,
 };
 
 pub struct Count {
@@ -110,13 +111,13 @@ pub async fn follow_user_route(
     };
 
     //TODO Not sure if that's a good idea...
-    for connection in user {
+    for connection in user.clone() {
         event_tracker
             .subscribe(
                 RealTimeEvent::NewPostNotification {
                     followed_user_id: user_id,
                 },
-                *connection,
+                connection,
             )
             .await;
     }
