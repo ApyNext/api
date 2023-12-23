@@ -111,7 +111,7 @@ pub async fn handle_socket(
     } else {
         let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-        let user = User::new(sender);
+        let user = User::new(sender.clone());
 
         users.write().await.insert(id, user);
 
@@ -125,14 +125,24 @@ pub async fn handle_socket(
             //TODO handle event
         }
 
-        users.write().await.remove(&id);
+        disconnect(id, sender, subscribed_events, users, event_tracker).await;
 
         info!("Disconnected {id}");
     }
 }
 
 pub async fn remove_from_users(id: i64, users: Users, user: UserConnection) {
-    if let Some(senders) = users.write().await.get_mut(&id) {
+    if let Entry::Occupied(mut entry) = users.write().await.entry(id) {
+        let senders = entry.get_mut();
+        if senders.connections.len() == 1 {
+            //TODO Not sure if it's useful
+            if Arc::ptr_eq(&senders.connections[0], &user) {
+                entry.remove_entry();
+                return;
+            } else {
+                warn!("User with id {id} has an unknown connection instead of the right connection...");
+            }
+        }
         senders
             .connections
             .retain(|sender| !Arc::ptr_eq(sender, &user));
