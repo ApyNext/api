@@ -18,8 +18,8 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
-use futures_util::stream::SplitSink;
-use futures_util::SinkExt;
+use futures_util::stream::{FuturesUnordered, SplitSink};
+use futures_util::{SinkExt, StreamExt};
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::ws_route::ws_route;
@@ -49,8 +49,8 @@ pub struct AppState {
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub enum RealTimeEvent {
-    //with the ID of the followed user
-    NewPostNotification { user_id: i64 },
+    NewPostNotification { followed_user_id: i64 },
+    ConnectedUsersCountUpdate,
 }
 
 #[derive(Default, Clone)]
@@ -78,6 +78,7 @@ impl EventTracker {
         if let Entry::Occupied(mut entry) = self.events.write().await.entry(event_type) {
             let users = entry.get_mut();
             if users.len() == 1 {
+                //Note sure if that's useful
                 if Arc::ptr_eq(&users[0], &subscriber) {
                     entry.remove_entry();
                 }
@@ -89,39 +90,28 @@ impl EventTracker {
 
     pub async fn notify(&self, event_type: RealTimeEvent, content: String) {
         if let Some(connections) = self.events.read().await.get(&event_type) {
+            let f = FuturesUnordered::new();
+
             for connection in connections {
-                if let Err(e) = connection
-                    .write()
-                    .await
-                    .send(Message::Text(content.clone()))
-                    .await
-                {
-                    warn!("{e}");
-                }
+                f.push({
+                    let content = content.clone();
+                    async move {
+                        if let Err(e) = connection.write().await.send(Message::Text(content)).await
+                        {
+                            warn!("{e}");
+                        }
+                    }
+                });
             }
+
+            f.collect::<Vec<()>>().await;
         }
-    }
-}
-
-pub struct User {
-    connections: Vec<UserConnection>,
-}
-
-impl User {
-    pub fn new(connection: UserConnection) -> Self {
-        Self {
-            connections: vec![connection],
-        }
-    }
-
-    pub async fn add_connection(user: Arc<RwLock<Self>>, connection: UserConnection) {
-        user.write().await.connections.push(connection);
     }
 }
 
 const FRONT_URL: &str = env!("FRONT_URL");
 type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
-type Users = Arc<RwLock<HashMap<i64, User>>>;
+type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
 static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 
 #[tokio::main]
@@ -207,7 +197,7 @@ async fn main() {
         .expect("Failed to run migrations");
 
     let smtp_client = SmtpTransport::relay(&email_smtp_server)
-        .expect("Error while creating SMTP client")
+        .expect("Error creating SMTP client")
         .credentials(Credentials::new(email, email_password))
         .build();
 

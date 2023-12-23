@@ -20,9 +20,7 @@ pub async fn follow_user_route(
     AuthUser(auth_user): AuthUser,
     Extension(users): Extension<Users>,
     Extension(event_tracker): Extension<EventTracker>,
-
-    //TODO change type from i64 to String
-    Path(user_id): Path<i64>,
+    Path(user_username): Path<String>,
     State(app_state): State<Arc<AppState>>,
 ) -> Result<(), AppError> {
     let Some(auth_user) = auth_user else {
@@ -33,8 +31,33 @@ pub async fn follow_user_route(
         ));
     };
 
+    let user = sqlx::query_as!(
+        Record,
+        r#"SELECT id FROM users WHERE username = $1"#,
+        user_username
+    )
+    .fetch_optional(&app_state.pool)
+    .await
+    .map_err(|e| {
+        warn!("Error getting id of user {user_username} : {e}");
+        AppError::internal_server_error()
+    })?;
+
+    let Some(user) = user else {
+        warn!("Cannot follow user `{user_username}` that doesn't exist");
+        return Err(AppError::new(
+            StatusCode::FORBIDDEN,
+            Some(format!("L'utilisateur {user_username} n'existe pas.")),
+        ));
+    };
+
+    let user_id = user.id;
+
     if auth_user.id == user_id {
-        warn!("{} tried to follow himself", auth_user.id);
+        warn!(
+            "{} with id {} tried to follow himself",
+            user_username, auth_user.id
+        );
         return Err(AppError::new(
             StatusCode::FORBIDDEN,
             Some("Tu ne peux pas te suivre toi-même."),
@@ -87,9 +110,14 @@ pub async fn follow_user_route(
     };
 
     //TODO Not sure if that's a good idea...
-    for connection in user.connections.clone() {
+    for connection in user {
         event_tracker
-            .subscribe(RealTimeEvent::NewPostNotification { user_id }, connection)
+            .subscribe(
+                RealTimeEvent::NewPostNotification {
+                    followed_user_id: user_id,
+                },
+                *connection,
+            )
             .await;
     }
 

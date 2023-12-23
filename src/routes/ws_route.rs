@@ -4,19 +4,22 @@ use std::{
 };
 
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade},
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade,
+    },
     response::Response,
     Extension,
 };
 
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
 use serde::Serialize;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    AppState, EventTracker, RealTimeEvent, User, UserConnection, Users, NEXT_USER_ID,
+    AppState, EventTracker, RealTimeEvent, UserConnection, Users, NEXT_USER_ID,
 };
 
 #[derive(Serialize)]
@@ -25,10 +28,27 @@ pub struct WsEvent {
     content: String,
 }
 
+impl WsEvent {
+    pub fn new(name: String, content: String) -> Self {
+        Self { name, content }
+    }
+}
+
 #[derive(Serialize)]
 pub struct NewPostNotification {
     author_username: String,
     content: String,
+}
+
+#[derive(Serialize)]
+pub struct ConnectedUsersCountUpdate {
+    count: usize,
+}
+
+impl ConnectedUsersCountUpdate {
+    pub fn new(count: usize) -> Self {
+        Self { count }
+    }
 }
 
 pub async fn ws_route(
@@ -73,23 +93,40 @@ pub async fn handle_socket(
         //TODO to that asynchronously
         for user_followed in &users_followed {
             let event_type = RealTimeEvent::NewPostNotification {
-                user_id: user_followed.id,
+                followed_user_id: user_followed.id,
             };
             subscribed_events.insert(event_type.clone());
             event_tracker.subscribe(event_type, sender.clone()).await;
         }
 
-        let mut writer = users.write().await;
-
-        if let Entry::Occupied(mut user) = writer.entry(auth_user.id) {
-            user.get_mut().connections.push(sender.clone());
-        } else {
-            let user = User::new(sender.clone());
-
-            writer.insert(auth_user.id, user);
+        match users.write().await.entry(auth_user.id) {
+            Entry::Occupied(mut entry) => entry.get_mut().push(sender.clone()),
+            Entry::Vacant(entry) => {
+                entry.insert(vec![sender.clone()]);
+            }
         }
 
-        drop(writer);
+        let user_count = users.read().await.keys().filter(|key| **key > -1).count();
+
+        let event = ConnectedUsersCountUpdate::new(user_count);
+        match serde_json::to_string(&event) {
+            Ok(event) => {
+                let event = WsEvent::new("connected_user_count_update".to_string(), event);
+                match serde_json::to_string(&event) {
+                    Ok(event) => {
+                        event_tracker
+                            .notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
+                            .await;
+                    }
+                    Err(e) => {
+                        warn!("Error serializing websocket event {} : {e}", event.name);
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Error serializing connected users count update event : {e}");
+            }
+        }
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
@@ -100,6 +137,7 @@ pub async fn handle_socket(
 
             //TODO handle event
         }
+
         disconnect(
             auth_user.id,
             sender,
@@ -111,9 +149,7 @@ pub async fn handle_socket(
     } else {
         let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-        let user = User::new(sender.clone());
-
-        users.write().await.insert(id, user);
+        users.write().await.insert(id, vec![sender.clone()]);
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
@@ -134,18 +170,15 @@ pub async fn handle_socket(
 pub async fn remove_from_users(id: i64, users: Users, user: UserConnection) {
     if let Entry::Occupied(mut entry) = users.write().await.entry(id) {
         let senders = entry.get_mut();
-        if senders.connections.len() == 1 {
+        if senders.len() == 1 {
             //TODO Not sure if it's useful
-            if Arc::ptr_eq(&senders.connections[0], &user) {
+            if Arc::ptr_eq(&senders[0], &user) {
                 entry.remove_entry();
                 return;
-            } else {
-                warn!("User with id {id} has an unknown connection instead of the right connection...");
             }
+            warn!("User with id {id} has an unknown connection instead of the right connection...");
         }
-        senders
-            .connections
-            .retain(|sender| !Arc::ptr_eq(sender, &user));
+        senders.retain(|sender| !Arc::ptr_eq(sender, &user));
     } else {
         warn!("User with id {id} is not is `users`");
     };
@@ -166,4 +199,19 @@ pub async fn disconnect(
     }
     tokio::join!(f.collect::<Vec<()>>(), remove_from_users(id, users, user));
     info!("User {} disconnected", id);
+}
+
+pub async fn broadcast_event(users: Users, content: &str) {
+    for (user_id, user) in users.write().await.iter() {
+        for connection in user {
+            if let Err(e) = connection
+                .write()
+                .await
+                .send(Message::Text(content.to_string()))
+                .await
+            {
+                warn!("Error sending event to {user_id} : {e}");
+            };
+        }
+    }
 }
