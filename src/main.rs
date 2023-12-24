@@ -85,7 +85,9 @@ impl EventTracker {
                 return;
             }
             users.retain(|s| !Arc::ptr_eq(s, &subscriber));
+            return;
         }
+        warn!("User not subscribed to event.");
     }
 
     pub async fn notify(&self, event_type: RealTimeEvent, content: String) {

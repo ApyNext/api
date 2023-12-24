@@ -13,7 +13,7 @@ use axum::{
 };
 
 use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -22,15 +22,21 @@ use crate::{
     AppState, EventTracker, RealTimeEvent, UserConnection, Users, NEXT_USER_ID,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct WsEvent {
     name: String,
-    content: String,
+    content: serde_json::Value,
 }
 
 impl WsEvent {
-    pub fn new(name: String, content: String) -> Self {
+    pub fn new(name: String, content: serde_json::Value) -> Self {
         Self { name, content }
+    }
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+    pub fn get_content(&self) -> &serde_json::Value {
+        &self.content
     }
 }
 
@@ -38,6 +44,15 @@ impl WsEvent {
 pub struct NewPostNotification {
     author_username: String,
     content: String,
+}
+
+impl NewPostNotification {
+    pub fn new(author_username: String, content: String) -> Self {
+        Self {
+            author_username,
+            content,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -90,7 +105,7 @@ pub async fn handle_socket(
             }
         };
 
-        //TODO to that asynchronously
+        //TODO perhaps do that asynchronously
         for user_followed in &users_followed {
             let event_type = RealTimeEvent::NewPostNotification {
                 followed_user_id: user_followed.id,
@@ -109,7 +124,7 @@ pub async fn handle_socket(
         let user_count = users.read().await.keys().filter(|key| **key > -1).count();
 
         let event = ConnectedUsersCountUpdate::new(user_count);
-        match serde_json::to_string(&event) {
+        match serde_json::to_value(&event) {
             Ok(event) => {
                 let event = WsEvent::new("connected_user_count_update".to_string(), event);
                 match serde_json::to_string(&event) {
@@ -133,9 +148,31 @@ pub async fn handle_socket(
                 break;
             };
 
-            info!("{:?}", msg);
-
-            //TODO handle event
+            match msg {
+                Message::Text(text) => {
+                    let ws_event: WsEvent = match serde_json::from_str(&text) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            warn!("Error deserializing WS event : {e}");
+                            sender
+                                .write()
+                                .await
+                                .send(Message::Text("Invalid event".to_string()))
+                                .await;
+                            continue;
+                        }
+                    };
+                    match ws_event.get_name() {
+                        "slt" => {
+                            //TODO
+                        }
+                        text => {
+                            //TODO
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
         disconnect(
