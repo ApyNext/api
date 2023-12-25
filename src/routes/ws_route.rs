@@ -23,8 +23,8 @@ use crate::{
     AppState, EventTracker, RealTimeEvent, UserConnection, Users, NEXT_USER_ID,
 };
 
-const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
-const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
+pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
+pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
 
 pub struct WsEvent;
 
@@ -59,16 +59,6 @@ impl ClientEvent {
     }
     pub fn get_content(&self) -> &serde_json::Value {
         &self.content
-    }
-    pub fn get_real_time_event(&self) -> Result<RealTimeEvent, ()> {
-        match self.name.as_str() {
-            "subscribe_to_event" | "unsubscribe_to_event" => (),
-            _ => unimplemented!(),
-        }
-
-        let Some(event_name) = self.content.get("name") else {
-            unimplemented!();
-        };
     }
 }
 

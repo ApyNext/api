@@ -22,7 +22,10 @@ use futures_util::stream::{FuturesUnordered, SplitSink};
 use futures_util::{SinkExt, StreamExt};
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
-use routes::ws_route::ws_route;
+use routes::ws_route::{
+    ws_route, ClientEvent, CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME,
+    NEW_POST_NOTIFICATION_EVENT_NAME,
+};
 
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::RwLock;
@@ -51,6 +54,37 @@ pub struct AppState {
 pub enum RealTimeEvent {
     NewPostNotification { followed_user_id: i64 },
     ConnectedUsersCountUpdate,
+}
+
+impl RealTimeEvent {
+    pub async fn from_client_event(client_event: ClientEvent) -> Result<Self, String> {
+        match client_event.get_name() {
+            "subscribe_to_event" => {
+                let content = client_event.get_content();
+                let Some(event_name) = content.get("name") else {
+                    return Err(
+                        "Le champs `name` est manquant à l'intérieur de `content`.".to_string()
+                    );
+                };
+
+                let Some(event_name) = event_name.as_str() else {
+                    return Err("Le champs `name` à l'intérieur de `content` doit être une chaîne de caractères".to_string());
+                };
+
+                match event_name {
+                    //no, already a route for that
+                    CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME => {
+                        Ok(RealTimeEvent::ConnectedUsersCountUpdate)
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+            "unsubscribe_to_event" => {
+                unimplemented!()
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Default, Clone)]
