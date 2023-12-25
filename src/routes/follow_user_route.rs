@@ -9,8 +9,12 @@ use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::AuthUser,
-    utils::{app_error::AppError, register::Record},
-    AppState, EventTracker, RealTimeEvent, Users,
+    utils::{
+        app_error::AppError,
+        real_time_event_management::{EventTracker, RealTimeEvent},
+        register::Record,
+    },
+    AppState, Users,
 };
 
 pub struct Count {

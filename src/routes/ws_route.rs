@@ -12,55 +12,19 @@ use axum::{
     Extension,
 };
 
-use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
-use serde::Deserialize;
+use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    AppState, EventTracker, RealTimeEvent, UserConnection, Users, NEXT_USER_ID,
+    utils::real_time_event_management::{disconnect, EventTracker, RealTimeEvent, WsEvent},
+    AppState, Users, CONNECTED_USERS_COUNT, NEXT_USER_ID,
 };
 
 pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
 pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
-
-pub struct WsEvent;
-
-impl WsEvent {
-    //TODO change content to a Post struct
-    pub fn new_new_post_modification_event(author: String, content: String) -> serde_json::Value {
-        json! ({
-            "name": NEW_POST_NOTIFICATION_EVENT_NAME,
-            "content": {
-                "author": author,
-                "content": content
-            },
-        })
-    }
-    pub fn new_connected_users_count_update(count: usize) -> serde_json::Value {
-        json! ({
-            "name": CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME,
-            "content": count,
-        })
-    }
-}
-
-#[derive(Deserialize)]
-pub struct ClientEvent {
-    name: String,
-    content: serde_json::Value,
-}
-
-impl ClientEvent {
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-    pub fn get_content(&self) -> &serde_json::Value {
-        &self.content
-    }
-}
 
 pub async fn ws_route(
     ws: WebSocketUpgrade,
@@ -116,54 +80,42 @@ pub async fn handle_socket(
             Entry::Occupied(mut entry) => entry.get_mut().push(sender.clone()),
             Entry::Vacant(entry) => {
                 entry.insert(vec![sender.clone()]);
+                let user_count = CONNECTED_USERS_COUNT.fetch_add(1, Ordering::Relaxed);
+                let event = WsEvent::new_connected_users_count_update_event(user_count).to_string();
+                event_tracker
+                    .notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
+                    .await;
             }
         }
 
-        let user_count = writer.keys().filter(|key| **key > -1).count();
-
         drop(writer);
-
-        let event = WsEvent::new_connected_users_count_update(user_count).to_string();
-
-        event_tracker.notify(RealTimeEvent::ConnectedUsersCountUpdate, event);
-
-        //drop(event);
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
                 break;
             };
 
-            match msg {
-                Message::Text(text) => {
-                    let client_event: ClientEvent = match serde_json::from_str(&text) {
-                        Ok(e) => e,
-                        Err(e) => {
-                            warn!("Error deserializing WS event : {e}");
-                            sender
-                                .write()
-                                .await
-                                .send(Message::Text(
-                                    json!({
-                                        "name": "error",
-                                        "content": "Invalid event"
-                                    })
-                                    .to_string(),
-                                ))
-                                .await;
-                            continue;
-                        }
+            if let Message::Text(text) = msg {
+                if let Err(e) = event_tracker
+                    .handle_client_event(&text, sender.clone())
+                    .await
+                {
+                    if let Err(e) = sender
+                        .write()
+                        .await
+                        .send(Message::Text(
+                            json!({
+                                "name": "error",
+                                "content": e
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                    {
+                        warn!("Error sending error to client : {e}");
                     };
-                    match client_event.get_name() {
-                        "slt" => {
-                            //TODO
-                        }
-                        text => {
-                            //TODO
-                        }
-                    }
-                }
-                _ => {}
+                    continue;
+                };
             }
         }
 
@@ -193,54 +145,5 @@ pub async fn handle_socket(
         disconnect(id, sender, subscribed_events, users, event_tracker).await;
 
         info!("Disconnected {id}");
-    }
-}
-
-pub async fn remove_from_users(id: i64, users: Users, user: UserConnection) {
-    if let Entry::Occupied(mut entry) = users.write().await.entry(id) {
-        let senders = entry.get_mut();
-        if senders.len() == 1 {
-            //TODO Not sure if it's useful
-            if Arc::ptr_eq(&senders[0], &user) {
-                entry.remove_entry();
-                return;
-            }
-            warn!("User with id {id} has an unknown connection instead of the right connection...");
-        }
-        senders.retain(|sender| !Arc::ptr_eq(sender, &user));
-    } else {
-        warn!("User with id {id} is not is `users`");
-    };
-}
-
-pub async fn disconnect(
-    id: i64,
-    user: UserConnection,
-    subscribed_events: HashSet<RealTimeEvent>,
-    users: Users,
-    event_tracker: EventTracker,
-) {
-    info!("Disconnecting {}", id);
-    let f = FuturesUnordered::new();
-
-    for event in subscribed_events {
-        f.push(event_tracker.unsubscribe(event, user.clone()));
-    }
-    tokio::join!(f.collect::<Vec<()>>(), remove_from_users(id, users, user));
-    info!("User {} disconnected", id);
-}
-
-pub async fn broadcast_event(users: Users, content: &str) {
-    for (user_id, user) in users.write().await.iter() {
-        for connection in user {
-            if let Err(e) = connection
-                .write()
-                .await
-                .send(Message::Text(content.to_string()))
-                .await
-            {
-                warn!("Error sending event to {user_id} : {e}");
-            };
-        }
     }
 }
