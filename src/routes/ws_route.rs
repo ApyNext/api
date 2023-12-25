@@ -13,7 +13,8 @@ use axum::{
 };
 
 use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -22,47 +23,52 @@ use crate::{
     AppState, EventTracker, RealTimeEvent, UserConnection, Users, NEXT_USER_ID,
 };
 
-#[derive(Serialize, Deserialize)]
-pub struct WsEvent {
+const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
+const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
+
+pub struct WsEvent;
+
+impl WsEvent {
+    //TODO change content to a Post struct
+    pub fn new_new_post_modification_event(author: String, content: String) -> serde_json::Value {
+        json! ({
+            "name": NEW_POST_NOTIFICATION_EVENT_NAME,
+            "content": {
+                "author": author,
+                "content": content
+            },
+        })
+    }
+    pub fn new_connected_users_count_update(count: usize) -> serde_json::Value {
+        json! ({
+            "name": CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME,
+            "content": count,
+        })
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ClientEvent {
     name: String,
     content: serde_json::Value,
 }
 
-impl WsEvent {
-    pub fn new(name: String, content: serde_json::Value) -> Self {
-        Self { name, content }
-    }
+impl ClientEvent {
     pub fn get_name(&self) -> &str {
         &self.name
     }
     pub fn get_content(&self) -> &serde_json::Value {
         &self.content
     }
-}
-
-#[derive(Serialize)]
-pub struct NewPostNotification {
-    author_username: String,
-    content: String,
-}
-
-impl NewPostNotification {
-    pub fn new(author_username: String, content: String) -> Self {
-        Self {
-            author_username,
-            content,
+    pub fn get_real_time_event(&self) -> Result<RealTimeEvent, ()> {
+        match self.name.as_str() {
+            "subscribe_to_event" | "unsubscribe_to_event" => (),
+            _ => unimplemented!(),
         }
-    }
-}
 
-#[derive(Serialize)]
-pub struct ConnectedUsersCountUpdate {
-    count: usize,
-}
-
-impl ConnectedUsersCountUpdate {
-    pub fn new(count: usize) -> Self {
-        Self { count }
+        let Some(event_name) = self.content.get("name") else {
+            unimplemented!();
+        };
     }
 }
 
@@ -114,34 +120,24 @@ pub async fn handle_socket(
             event_tracker.subscribe(event_type, sender.clone()).await;
         }
 
-        match users.write().await.entry(auth_user.id) {
+        let mut writer = users.write().await;
+
+        match writer.entry(auth_user.id) {
             Entry::Occupied(mut entry) => entry.get_mut().push(sender.clone()),
             Entry::Vacant(entry) => {
                 entry.insert(vec![sender.clone()]);
             }
         }
 
-        let user_count = users.read().await.keys().filter(|key| **key > -1).count();
+        let user_count = writer.keys().filter(|key| **key > -1).count();
 
-        let event = ConnectedUsersCountUpdate::new(user_count);
-        match serde_json::to_value(&event) {
-            Ok(event) => {
-                let event = WsEvent::new("connected_user_count_update".to_string(), event);
-                match serde_json::to_string(&event) {
-                    Ok(event) => {
-                        event_tracker
-                            .notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
-                            .await;
-                    }
-                    Err(e) => {
-                        warn!("Error serializing websocket event {} : {e}", event.name);
-                    }
-                }
-            }
-            Err(e) => {
-                warn!("Error serializing connected users count update event : {e}");
-            }
-        }
+        drop(writer);
+
+        let event = WsEvent::new_connected_users_count_update(user_count).to_string();
+
+        event_tracker.notify(RealTimeEvent::ConnectedUsersCountUpdate, event);
+
+        //drop(event);
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
@@ -150,19 +146,25 @@ pub async fn handle_socket(
 
             match msg {
                 Message::Text(text) => {
-                    let ws_event: WsEvent = match serde_json::from_str(&text) {
+                    let client_event: ClientEvent = match serde_json::from_str(&text) {
                         Ok(e) => e,
                         Err(e) => {
                             warn!("Error deserializing WS event : {e}");
                             sender
                                 .write()
                                 .await
-                                .send(Message::Text("Invalid event".to_string()))
+                                .send(Message::Text(
+                                    json!({
+                                        "name": "error",
+                                        "content": "Invalid event"
+                                    })
+                                    .to_string(),
+                                ))
                                 .await;
                             continue;
                         }
                     };
-                    match ws_event.get_name() {
+                    match client_event.get_name() {
                         "slt" => {
                             //TODO
                         }
