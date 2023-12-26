@@ -30,6 +30,7 @@ use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_ex
 use crate::utils::real_time_event_management::EventTracker;
 use hyper::header::HeaderValue;
 use hyper::http::Method;
+use hyper::header;
 use lettre::{transport::smtp::authentication::Credentials, SmtpTransport};
 use middleware::logger::logger;
 use routes::a2f_login_route::a2f_login_route;
@@ -38,7 +39,7 @@ use routes::login_route::login_route;
 use routes::ok_route::ok_route;
 use routes::register_route::register_route;
 use sqlx::PgPool;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowHeaders, CorsLayer};
 
 pub struct AppState {
     pool: PgPool,
@@ -164,7 +165,16 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
         .allow_origin(front_url)
+<<<<<<< HEAD
         .allow_headers(Any)
+=======
+        .allow_headers(vec![
+            header::ACCEPT,
+            header::ACCEPT_LANGUAGE,
+            header::CONTENT_TYPE,
+            // Add other allowed headers here
+        ])
+>>>>>>> 5c33c1e8781aa1d3012eba22e582fe4d3387c7bc
         .allow_credentials(true);
 
     let router = Router::new()
