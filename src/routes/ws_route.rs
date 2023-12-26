@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashSet},
+    collections::hash_map::Entry,
     sync::{atomic::Ordering, Arc},
 };
 
@@ -19,12 +19,9 @@ use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    utils::real_time_event_management::{disconnect, EventTracker, RealTimeEvent, WsEvent},
-    AppState, Users, CONNECTED_USERS_COUNT, NEXT_USER_ID,
+    utils::real_time_event_management::{EventTracker, RealTimeEvent, WsEvent},
+    AppState, UserConnection, Users, CONNECTED_USERS_COUNT, NEXT_USER_ID,
 };
-
-pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
-pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
 
 pub async fn ws_route(
     ws: WebSocketUpgrade,
@@ -43,11 +40,7 @@ pub async fn handle_socket(
     event_tracker: EventTracker,
     app_state: Arc<AppState>,
 ) {
-    let mut subscribed_events: HashSet<RealTimeEvent> = HashSet::default();
-
     let (sender, mut receiver) = socket.split();
-
-    let sender = Arc::new(RwLock::new(sender));
 
     if let Some(auth_user) = auth_user {
         let users_followed = match sqlx::query_as!(
@@ -65,21 +58,20 @@ pub async fn handle_socket(
             }
         };
 
-        //TODO perhaps do that asynchronously
+        let user = Arc::new(RwLock::new(UserConnection::new(sender)));
+
+        //Perhaps do that asynchronously
         for user_followed in &users_followed {
             let event_type = RealTimeEvent::NewPostNotification {
                 followed_user_id: user_followed.id,
             };
-            subscribed_events.insert(event_type.clone());
-            event_tracker.subscribe(event_type, sender.clone()).await;
+            event_tracker.subscribe(event_type, user.clone()).await;
         }
 
-        let mut writer = users.write().await;
-
-        match writer.entry(auth_user.id) {
-            Entry::Occupied(mut entry) => entry.get_mut().push(sender.clone()),
+        match users.write().await.entry(auth_user.id) {
+            Entry::Occupied(mut entry) => entry.get_mut().push(user.clone()),
             Entry::Vacant(entry) => {
-                entry.insert(vec![sender.clone()]);
+                entry.insert(vec![user.clone()]);
                 let user_count = CONNECTED_USERS_COUNT.fetch_add(1, Ordering::Relaxed);
                 let event = WsEvent::new_connected_users_count_update_event(user_count).to_string();
                 event_tracker
@@ -88,21 +80,19 @@ pub async fn handle_socket(
             }
         }
 
-        drop(writer);
-
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
                 break;
             };
 
             if let Message::Text(text) = msg {
-                if let Err(e) = event_tracker
-                    .handle_client_event(&text, sender.clone())
-                    .await
-                {
-                    if let Err(e) = sender
+                info!("{} sent the WS event `{text}`", auth_user.id);
+
+                if let Err(e) = event_tracker.handle_client_event(&text, user.clone()).await {
+                    if let Err(e) = user
                         .write()
                         .await
+                        .sender
                         .send(Message::Text(
                             json!({
                                 "name": "error",
@@ -114,35 +104,47 @@ pub async fn handle_socket(
                     {
                         warn!("Error sending error to client : {e}");
                     };
-                    continue;
                 };
             }
         }
 
-        disconnect(
-            auth_user.id,
-            sender,
-            subscribed_events,
-            users,
-            event_tracker,
-        )
-        .await;
+        event_tracker.disconnect(auth_user.id, user, users).await;
     } else {
         let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
-        users.write().await.insert(id, vec![sender.clone()]);
+        let user = Arc::new(RwLock::new(UserConnection::new(sender)));
+
+        users.write().await.insert(id, vec![user.clone()]);
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
                 return;
             };
 
-            info!("{:?}", msg);
+            if let Message::Text(text) = msg {
+                info!("Not connected user {id} sent the WS event `{text}`");
 
-            //TODO handle event
+                if let Err(e) = event_tracker.handle_client_event(&text, user.clone()).await {
+                    if let Err(e) = user
+                        .write()
+                        .await
+                        .sender
+                        .send(Message::Text(
+                            json!({
+                                "name": "error",
+                                "content": e
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                    {
+                        warn!("Error sending error to client : {e}");
+                    };
+                }
+            }
         }
 
-        disconnect(id, sender, subscribed_events, users, event_tracker).await;
+        event_tracker.disconnect(id, user, users).await;
 
         info!("Disconnected {id}");
     }

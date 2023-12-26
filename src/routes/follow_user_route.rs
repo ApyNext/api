@@ -115,13 +115,13 @@ pub async fn follow_user_route(
     };
 
     //TODO Not sure if that's a good idea...
-    for connection in user.clone() {
+    for connection in user {
         event_tracker
             .subscribe(
                 RealTimeEvent::NewPostNotification {
                     followed_user_id: user_id,
                 },
-                connection,
+                connection.clone(),
             )
             .await;
     }

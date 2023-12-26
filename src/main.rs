@@ -4,7 +4,7 @@ mod routes;
 mod structs;
 mod utils;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env::var;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, AtomicUsize};
@@ -24,6 +24,7 @@ use routes::ws_route::ws_route;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
+use utils::real_time_event_management::RealTimeEvent;
 
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use crate::utils::real_time_event_management::EventTracker;
@@ -45,9 +46,22 @@ pub struct AppState {
     cipher: Cipher,
 }
 
+pub struct UserConnection {
+    subscribed_events: HashSet<RealTimeEvent>,
+    sender: SplitSink<WebSocket, Message>,
+}
+
+impl UserConnection {
+    pub fn new(sender: SplitSink<WebSocket, Message>) -> Self {
+        Self {
+            subscribed_events: HashSet::default(),
+            sender,
+        }
+    }
+}
+
 const FRONT_URL: &str = env!("FRONT_URL");
-type UserConnection = Arc<RwLock<SplitSink<WebSocket, Message>>>;
-type Users = Arc<RwLock<HashMap<i64, Vec<UserConnection>>>>;
+type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
 static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
 static CONNECTED_USERS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -150,7 +164,8 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
         .allow_origin(front_url)
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .allow_credentials(true);
 
     let router = Router::new()
         .route("/", get(ok_route))
