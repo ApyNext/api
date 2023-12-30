@@ -1,7 +1,4 @@
-use std::{
-    collections::hash_map::Entry,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 use axum::{
     extract::{
@@ -20,7 +17,7 @@ use tracing::{info, warn};
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
     utils::real_time_event_management::{EventTracker, RealTimeEvent, WsEvent},
-    AppState, UserConnection, Users, CONNECTED_USERS_COUNT, NEXT_USER_ID,
+    AppState, UserConnection, Users, NEXT_NOT_CONNECTED_USER_ID,
 };
 
 pub async fn ws_route(
@@ -42,6 +39,8 @@ pub async fn handle_socket(
 ) {
     let (sender, mut receiver) = socket.split();
 
+    let user = Arc::new(RwLock::new(UserConnection::new(sender)));
+
     if let Some(auth_user) = auth_user {
         let users_followed = match sqlx::query_as!(
             InnerAuthUser,
@@ -57,8 +56,6 @@ pub async fn handle_socket(
                 return;
             }
         };
-
-        let user = Arc::new(RwLock::new(UserConnection::new(sender)));
 
         //Perhaps do that asynchronously
         for user_followed in &users_followed {
@@ -102,9 +99,7 @@ pub async fn handle_socket(
 
         event_tracker.disconnect(auth_user.id, user, users).await;
     } else {
-        let id = NEXT_USER_ID.fetch_sub(1, Ordering::Relaxed);
-
-        let user = Arc::new(RwLock::new(UserConnection::new(sender)));
+        let id = NEXT_NOT_CONNECTED_USER_ID.fetch_sub(1, Ordering::Relaxed);
 
         users.write().await.insert(id, vec![user.clone()]);
 
@@ -121,13 +116,7 @@ pub async fn handle_socket(
                         .write()
                         .await
                         .sender
-                        .send(Message::Text(
-                            json!({
-                                "name": "error",
-                                "content": e
-                            })
-                            .to_string(),
-                        ))
+                        .send(Message::Text(WsEvent::new_error(&e).to_string()))
                         .await
                     {
                         warn!("Error sending error to client : {e}");

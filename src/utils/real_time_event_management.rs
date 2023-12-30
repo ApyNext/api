@@ -25,6 +25,7 @@ pub struct EventTracker {
 
 pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
 pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
+pub const ERROR_EVENT_NAME: &str = "error";
 
 impl EventTracker {
     pub async fn subscribe(
@@ -32,11 +33,14 @@ impl EventTracker {
         event_type: RealTimeEvent,
         subscriber: Arc<RwLock<UserConnection>>,
     ) {
-        subscriber
-            .write()
-            .await
-            .subscribed_events
-            .insert(event_type.clone());
+        let mut connection = subscriber.write().await;
+        if connection.subscribed_events.contains(&event_type) {
+            warn!("User already subscribed to event {event_type:?}");
+            return;
+        } else {
+            connection.subscribed_events.insert(event_type.clone());
+        }
+        drop(connection);
         //Check if the event already exists
         match self.events.write().await.entry(event_type) {
             //If it exists, add the connection to the subscribers of this event
@@ -238,10 +242,18 @@ impl WsEvent {
             },
         })
     }
+
     pub fn new_connected_users_count_update_event(count: usize) -> serde_json::Value {
         json! ({
             "event": CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME,
             "content": count,
+        })
+    }
+
+    pub fn new_error(text: &str) -> serde_json::Value {
+        json! ({
+            "event": ERROR_EVENT_NAME,
+            "content": text
         })
     }
 }

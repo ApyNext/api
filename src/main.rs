@@ -63,7 +63,7 @@ impl UserConnection {
 
 const FRONT_URL: &str = env!("FRONT_URL");
 type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
-static NEXT_USER_ID: AtomicI64 = AtomicI64::new(-1);
+static NEXT_NOT_CONNECTED_USER_ID: AtomicI64 = AtomicI64::new(-1);
 static CONNECTED_USERS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[tokio::main]
