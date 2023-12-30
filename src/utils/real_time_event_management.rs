@@ -144,6 +144,30 @@ impl EventTracker {
         Ok(())
     }
 
+    pub async fn add_to_users(&self, id: i64, users: Users, user: Arc<RwLock<UserConnection>>) {
+        match users.write().await.entry(id) {
+            Entry::Occupied(mut entry) => {
+                let connections = entry.get_mut();
+                for connection in connections.iter() {
+                    if Arc::ptr_eq(connection, &user) {
+                        warn!("`users` already contains user `{id}`, skipping");
+                        return;
+                    }
+                }
+                connections.push(user);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(vec![user]);
+                if id > -1 {
+                    let count = CONNECTED_USERS_COUNT.fetch_add(1, Ordering::Relaxed);
+                    let event = WsEvent::new_connected_users_count_update_event(count).to_string();
+                    self.notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
+                        .await;
+                }
+            }
+        }
+    }
+
     pub async fn remove_from_users(
         &self,
         id: i64,
@@ -151,23 +175,33 @@ impl EventTracker {
         user: Arc<RwLock<UserConnection>>,
     ) {
         if let Entry::Occupied(mut entry) = users.write().await.entry(id) {
-            let user_connections = entry.get_mut();
-            if user_connections.len() == 1 {
+            if id <= -1 {
+                entry.remove_entry();
+                return;
+            }
+            let subscribers = entry.get_mut();
+            if subscribers.len() == 1 {
                 //TODO Not sure if it's useful
-                if Arc::ptr_eq(&user_connections[0], &user) {
-                    if id > -1 {
-                        let user_count = CONNECTED_USERS_COUNT.fetch_sub(1, Ordering::Relaxed);
-                        let event =
-                            WsEvent::new_connected_users_count_update_event(user_count).to_string();
-                        self.notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
-                            .await;
-                    }
+                if Arc::ptr_eq(&subscribers[0], &user) {
+                    //If the user was connected, decrement the connected users count
+                    let user_count = CONNECTED_USERS_COUNT.fetch_sub(1, Ordering::Relaxed);
+                    let event =
+                        WsEvent::new_connected_users_count_update_event(user_count).to_string();
+                    self.notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
+                        .await;
                     entry.remove_entry();
                     return;
                 }
                 warn!("User with id {id} has an unknown connection instead of the right connection...");
             }
-            user_connections.retain(|connection| !Arc::ptr_eq(connection, &user));
+            let len = subscribers.len();
+            subscribers.retain(|connection| !Arc::ptr_eq(connection, &user));
+            if subscribers.len() < len - 1 {
+                warn!(
+                    "Deleted {} subscribers from users for the same id {id}",
+                    len - subscribers.len()
+                );
+            }
         } else {
             warn!("User with id {id} is not is `users`");
         };
@@ -182,6 +216,7 @@ impl EventTracker {
         for event in subscribed_events {
             f.push(self.unsubscribe(event, user.clone()));
         }
+
         tokio::join!(
             f.collect::<Vec<()>>(),
             self.remove_from_users(id, users, user)

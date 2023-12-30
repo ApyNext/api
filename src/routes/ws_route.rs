@@ -68,17 +68,9 @@ pub async fn handle_socket(
             event_tracker.subscribe(event_type, user.clone()).await;
         }
 
-        match users.write().await.entry(auth_user.id) {
-            Entry::Occupied(mut entry) => entry.get_mut().push(user.clone()),
-            Entry::Vacant(entry) => {
-                entry.insert(vec![user.clone()]);
-                let user_count = CONNECTED_USERS_COUNT.fetch_add(1, Ordering::Relaxed);
-                let event = WsEvent::new_connected_users_count_update_event(user_count).to_string();
-                event_tracker
-                    .notify(RealTimeEvent::ConnectedUsersCountUpdate, event)
-                    .await;
-            }
-        }
+        event_tracker
+            .add_to_users(auth_user.id, users.clone(), user.clone())
+            .await;
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
