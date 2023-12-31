@@ -11,10 +11,10 @@ use crate::{
     extractors::auth_extractor::AuthUser,
     utils::{
         app_error::AppError,
-        real_time_event_management::{EventTracker, RealTimeEvent},
+        real_time_event_management::{EventTracker, RealTimeEvent, Users},
         register::Record,
     },
-    AppState, Users,
+    AppState,
 };
 
 pub struct Count {

@@ -9,15 +9,16 @@ use axum::{
     Extension,
 };
 
-use futures_util::{SinkExt, StreamExt};
-use serde_json::json;
+use futures_util::StreamExt;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    utils::real_time_event_management::{EventTracker, RealTimeEvent, WsEvent},
-    AppState, UserConnection, Users, NEXT_NOT_CONNECTED_USER_ID,
+    utils::real_time_event_management::{
+        EventTracker, RealTimeEvent, UserConnection, Users, WsEvent,
+    },
+    AppState, NEXT_NOT_CONNECTED_USER_ID,
 };
 
 pub async fn ws_route(
@@ -81,14 +82,7 @@ pub async fn handle_socket(
                     if let Err(e) = user
                         .write()
                         .await
-                        .sender
-                        .send(Message::Text(
-                            json!({
-                                "name": "error",
-                                "content": e
-                            })
-                            .to_string(),
-                        ))
+                        .send_text_event(WsEvent::new_error(&e).to_string())
                         .await
                     {
                         warn!("Error sending error to client : {e}");
@@ -105,7 +99,7 @@ pub async fn handle_socket(
 
         while let Some(msg) = receiver.next().await {
             let Ok(msg) = msg else {
-                return;
+                break;
             };
 
             if let Message::Text(text) = msg {
@@ -115,8 +109,7 @@ pub async fn handle_socket(
                     if let Err(e) = user
                         .write()
                         .await
-                        .sender
-                        .send(Message::Text(WsEvent::new_error(&e).to_string()))
+                        .send_text_event(WsEvent::new_error(&e).to_string())
                         .await
                     {
                         warn!("Error sending error to client : {e}");

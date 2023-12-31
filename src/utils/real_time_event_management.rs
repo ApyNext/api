@@ -1,16 +1,40 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     sync::{atomic::Ordering, Arc},
 };
 
-use axum::extract::ws::Message;
-use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
+use axum::extract::ws::{Message, WebSocket};
+use axum::Error;
+use futures_util::{
+    stream::{FuturesUnordered, SplitSink},
+    SinkExt, StreamExt,
+};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use crate::{UserConnection, Users, CONNECTED_USERS_COUNT};
+use crate::CONNECTED_USERS_COUNT;
+
+pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
+
+pub struct UserConnection {
+    subscribed_events: HashSet<RealTimeEvent>,
+    sender: SplitSink<WebSocket, Message>,
+}
+
+impl UserConnection {
+    pub fn new(sender: SplitSink<WebSocket, Message>) -> Self {
+        Self {
+            subscribed_events: HashSet::default(),
+            sender,
+        }
+    }
+
+    pub async fn send_text_event(&mut self, event: String) -> Result<(), Error> {
+        self.sender.send(Message::Text(event)).await
+    }
+}
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub enum RealTimeEvent {
@@ -37,15 +61,16 @@ impl EventTracker {
         if connection.subscribed_events.contains(&event_type) {
             warn!("User already subscribed to event {event_type:?}");
             return;
-        } else {
-            connection.subscribed_events.insert(event_type.clone());
         }
+        connection.subscribed_events.insert(event_type.clone());
+
         drop(connection);
         //Check if the event already exists
         match self.events.write().await.entry(event_type) {
             //If it exists, add the connection to the subscribers of this event
             Entry::Occupied(mut entry) => {
                 let entry = entry.get_mut();
+                //TODO Perhaps check if already inside
                 entry.push(subscriber);
             }
             //If it doesn't exist yet, add the event to the list of events and add the connection to it
@@ -134,7 +159,6 @@ impl EventTracker {
         };
 
         let event = match event_name {
-            //no, already a route for that
             CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME => RealTimeEvent::ConnectedUsersCountUpdate,
             event => return Err(format!("L'event `{event}` n'existe pas.")),
         };
