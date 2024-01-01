@@ -43,7 +43,7 @@ pub async fn register_route(
     }
 
     //Check if email is already used
-    if sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
+    let row = sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
         .fetch_optional(&app_state.pool)
         .await
         .map_err(|e| {
@@ -52,9 +52,9 @@ pub async fn register_route(
                 register_user.email, e
             );
             AppError::internal_server_error()
-        })?
-        .is_some()
-    {
+        })?;
+
+    if row.is_some() {
         warn!(
             "Email `{}` already exists in the database",
             register_user.email

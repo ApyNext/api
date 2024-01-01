@@ -42,9 +42,11 @@ pub enum RealTimeEvent {
     ConnectedUsersCountUpdate,
 }
 
+pub type Events = Arc<RwLock<HashMap<RealTimeEvent, Vec<Arc<RwLock<UserConnection>>>>>>;
+
 #[derive(Default, Clone)]
 pub struct EventTracker {
-    events: Arc<RwLock<HashMap<RealTimeEvent, Vec<Arc<RwLock<UserConnection>>>>>>,
+    events: Events,
 }
 
 pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";

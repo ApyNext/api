@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 mod extractors;
 mod middleware;
 mod routes;
