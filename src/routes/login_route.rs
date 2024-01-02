@@ -78,7 +78,7 @@ pub async fn login_route(
         }
     };
 
-    let a2f_token = Token::new(user.token, Duration::minutes(10), &app_state.cipher);
+    let a2f_token = Token::create(user.token, Duration::minutes(10), &app_state.cipher);
 
     let a2f_token = urlencoding::encode(&a2f_token).to_string();
 

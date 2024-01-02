@@ -52,7 +52,7 @@ pub async fn email_confirm_route(
         ));
     };
 
-    let token = Token::new(
+    let token = Token::create(
         Alphanumeric.sample_string(&mut thread_rng(), 256),
         Duration::days(365),
         &app_state.cipher,

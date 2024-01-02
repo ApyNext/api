@@ -43,6 +43,7 @@ pub async fn handle_socket(
     let user = Arc::new(RwLock::new(UserConnection::new(sender)));
 
     if let Some(auth_user) = auth_user {
+        info!("User with id {} has connected.", auth_user.id);
         let users_followed = match sqlx::query_as!(
             InnerAuthUser,
             r#"SELECT followed_id AS "id!" FROM follow where follower_id = $1"#,
@@ -94,6 +95,8 @@ pub async fn handle_socket(
         event_tracker.disconnect(auth_user.id, user, users).await;
     } else {
         let id = NEXT_NOT_CONNECTED_USER_ID.fetch_sub(1, Ordering::Relaxed);
+
+        info!("User with random id {id} has connected.");
 
         users.write().await.insert(id, vec![user.clone()]);
 

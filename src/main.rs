@@ -37,6 +37,7 @@ use routes::register_route::register_route;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
+/// The global state of the app
 pub struct AppState {
     pool: PgPool,
     smtp_client: SmtpTransport,

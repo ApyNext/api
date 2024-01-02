@@ -91,7 +91,7 @@ pub async fn register_route(
         ));
     };
 
-    let email_confirm_token = Token::new(
+    let email_confirm_token = Token::create(
         register_user.email.clone(),
         Duration::minutes(10),
         &app_state.cipher,

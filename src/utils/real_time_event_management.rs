@@ -17,13 +17,19 @@ use tracing::{info, warn};
 use crate::CONNECTED_USERS_COUNT;
 
 pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
+pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
+pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
+pub const ERROR_EVENT_NAME: &str = "error";
 
+/// A struct that represents an user connection
+/// Includes the events the connection is subscribed to and the sender
 pub struct UserConnection {
     subscribed_events: HashSet<RealTimeEvent>,
     sender: SplitSink<WebSocket, Message>,
 }
 
 impl UserConnection {
+    /// Create a new UserConnection struct, with no subscribed events
     pub fn new(sender: SplitSink<WebSocket, Message>) -> Self {
         Self {
             subscribed_events: HashSet::default(),
@@ -36,6 +42,7 @@ impl UserConnection {
     }
 }
 
+/// Struct that represents all the possible events that a connection can be subscribed to
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub enum RealTimeEvent {
     NewPostNotification { followed_user_id: i64 },
@@ -44,14 +51,17 @@ pub enum RealTimeEvent {
 
 pub type Events = Arc<RwLock<HashMap<RealTimeEvent, Vec<Arc<RwLock<UserConnection>>>>>>;
 
+#[derive(Deserialize)]
+pub struct ClientEvent {
+    action: String,
+    content: serde_json::Value,
+}
+
+/// Structs that stores all the connections subscribed to all events
 #[derive(Default, Clone)]
 pub struct EventTracker {
     events: Events,
 }
-
-pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
-pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
-pub const ERROR_EVENT_NAME: &str = "error";
 
 impl EventTracker {
     pub async fn subscribe(
@@ -93,21 +103,28 @@ impl EventTracker {
             .subscribed_events
             .remove(&event_type)
         {
-            warn!("Event {event_type:?} was not present in the list of events.");
+            warn!("Event {event_type:?} was not in the list of events.");
         };
-        if let Entry::Occupied(mut entry) = self.events.write().await.entry(event_type) {
+        if let Entry::Occupied(mut entry) = self.events.write().await.entry(event_type.clone()) {
             let users = entry.get_mut();
-            if users.len() == 1 {
-                //Note sure if that's useful
+            let users_len = users.len();
+            if users_len == 1 {
                 if Arc::ptr_eq(&users[0], &subscriber) {
                     entry.remove_entry();
                 }
                 return;
             }
             users.retain(|s| !Arc::ptr_eq(s, &subscriber));
+            let difference = users_len - users.len();
+            if difference > 1 {
+                warn!("Unsubscribed {} users instead of 1", difference);
+                if users.len() == 0 {
+                    entry.remove_entry();
+                }
+            }
             return;
         }
-        warn!("User not subscribed to event.");
+        warn!("User not subscribed to event {event_type:?}.");
     }
 
     pub async fn notify(&self, event_type: RealTimeEvent, content: String) {
@@ -232,9 +249,11 @@ impl EventTracker {
                     len - subscribers.len()
                 );
             }
-        } else {
-            warn!("User with id {id} is not is `users`");
-        };
+            return;
+        }
+        //Just to debug
+        //users.write().await.shrink_to_fit();
+        warn!("User with id {id} is not is `users`");
     }
 
     pub async fn disconnect(self, id: i64, user: Arc<RwLock<UserConnection>>, users: Users) {
@@ -251,6 +270,7 @@ impl EventTracker {
             f.collect::<Vec<()>>(),
             self.remove_from_users(id, users, user)
         );
+
         info!("User {} disconnected", id);
     }
 }
@@ -259,7 +279,7 @@ pub struct WsEvent;
 
 impl WsEvent {
     //TODO change content to a Post struct
-    pub fn new_new_post_modification_event(author: &str, content: &str) -> serde_json::Value {
+    /*pub fn new_new_post_modification_event(author: &str, content: &str) -> serde_json::Value {
         json! ({
             "event": NEW_POST_NOTIFICATION_EVENT_NAME,
             "content": {
@@ -267,7 +287,7 @@ impl WsEvent {
                 "content": content
             },
         })
-    }
+    }*/
 
     pub fn new_connected_users_count_update_event(count: usize) -> serde_json::Value {
         json! ({
@@ -284,14 +304,8 @@ impl WsEvent {
     }
 }
 
-#[derive(Deserialize)]
-pub struct ClientEvent {
-    action: String,
-    content: serde_json::Value,
-}
-
 //TODO use it
-pub async fn broadcast_event(users: Users, content: &str) {
+/*pub async fn broadcast_event(users: Users, content: &str) {
     for (user_id, user) in users.write().await.iter() {
         for connection in user {
             if let Err(e) = connection
@@ -305,4 +319,4 @@ pub async fn broadcast_event(users: Users, content: &str) {
             };
         }
     }
-}
+}*/
