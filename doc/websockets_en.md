@@ -56,8 +56,10 @@ Example :
 ## Events
 ### Connected users count update
 event = "connected_users_count_update"
+
 content: usize = connected user count
 
 ### Error
 event = "error"
+
 content: String = error message
