@@ -101,6 +101,8 @@ Requête : `GET /ws`
 Headers :
 - Token Bearer (facultatif)
 
+**Plus d'informations dans doc/websockets.md**
+
 ## Suivre un utilisateur
 Requête : `POST /:id/follow`
 

@@ -17,6 +17,8 @@ use tracing::{info, warn};
 use crate::CONNECTED_USERS_COUNT;
 
 pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
+pub const SUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "subscribe_to_event";
+pub const UNSUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "unsubscribe_from_event";
 pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
 pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
 pub const ERROR_EVENT_NAME: &str = "error";
@@ -166,11 +168,8 @@ impl EventTracker {
         };
 
         let content = client_event.content;
-        let Some(inner_event_name) = content.get("event") else {
-            return Err("Le champs `event` est manquant à l'intérieur de `content`.".to_string());
-        };
 
-        let Some(event_name) = inner_event_name.as_str() else {
+        let Some(event_name) = content.as_str() else {
             return Err(
                 "Le champs `event` à l'intérieur de `content` doit être une chaîne de caractères."
                     .to_string(),
@@ -183,8 +182,8 @@ impl EventTracker {
         };
 
         match client_event.action.as_str() {
-            "subscribe_to_event" => self.subscribe(event, sender).await,
-            "unsubscribe_to_event" => self.unsubscribe(event, sender).await,
+            SUBSCRIBE_TO_EVENT_ACTION_NAME => self.subscribe(event, sender).await,
+            UNSUBSCRIBE_TO_EVENT_ACTION_NAME => self.unsubscribe(event, sender).await,
             action => return Err(format!("L'action `{action}` n'existe pas.")),
         }
 
