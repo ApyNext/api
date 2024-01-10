@@ -71,5 +71,9 @@ pub async fn email_confirm_route(
         AppError::internal_server_error()
     })?;
 
-    Ok(cookies.add(Cookie::new("session", token)))
+    Ok(cookies.add({
+        let mut cookie = Cookie::new("session", token);
+        cookie.set_path("/");
+        cookie
+    }))
 }
