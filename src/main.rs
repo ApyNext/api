@@ -51,29 +51,24 @@ static CONNECTED_USERS_COUNT: AtomicUsize = AtomicUsize::new(0);
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().init();
-    let database_url = match var("DATABASE_URL") {
-        Ok(url) => url,
-        Err(e) => {
-            warn!("Error getting DATABASE_URL env variable : {e}");
-            return;
-        }
+
+    let Some(pool) = setup_pool().await else {
+        return;
     };
 
-    let secret_key = match var("ENCODING_KEY") {
-        Ok(key) => key,
-        Err(e) => {
-            warn!("Error getting ENCODING_KEY env variable : {e}");
-            return;
-        }
+    let Some(smtp_client) = setup_smtp_client() else {
+        return;
     };
 
-    let secret_key: [u8; 32] = match secret_key.as_bytes().try_into() {
-        Ok(key) => key,
-        Err(e) => {
-            warn!("The encryption key must be 32 bytes : {e}");
-            return;
-        }
+    let Some(cipher) = setup_cipher() else {
+        return;
     };
+
+    let app_state = Arc::new(AppState {
+        pool: pool.clone(),
+        smtp_client,
+        cipher,
+    });
 
     let front_url = match FRONT_URL.parse::<HeaderValue>() {
         Ok(url) => url,
@@ -82,67 +77,6 @@ async fn main() {
             return;
         }
     };
-
-    let email_smtp_server = match var("EMAIL_SMTP_SERVER") {
-        Ok(server_addr) => server_addr,
-        Err(e) => {
-            warn!("Error getting EMAIL_SMTP_SERVER env variable : {e}");
-            return;
-        }
-    };
-
-    let email = match var("EMAIL") {
-        Ok(email) => email,
-        Err(e) => {
-            warn!("Error getting EMAIL env variable : {e}");
-            return;
-        }
-    };
-
-    let email_password = match var("EMAIL_PASSWORD") {
-        Ok(password) => password,
-        Err(e) => {
-            warn!("Error getting EMAIL_PASSWORD env variable : {e}");
-            return;
-        }
-    };
-
-    let pool = match PgPoolOptions::new().connect(&database_url).await {
-        Ok(pool) => pool,
-        Err(e) => {
-            warn!("Error connecting to the DB : {e}");
-            return;
-        }
-    };
-
-    drop(database_url);
-
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run migrations");
-
-    let smtp_client = SmtpTransport::relay(&email_smtp_server)
-        .expect("Error creating SMTP client")
-        .credentials(Credentials::new(email, email_password))
-        .build();
-
-    drop(email_smtp_server);
-
-    if let Err(e) = smtp_client.test_connection() {
-        warn!("Error while testing connection to the SMTP server : {e}");
-        return;
-    }
-    info!("SMTP connection successful !");
-
-    let app_state = Arc::new(AppState {
-        pool: pool.clone(),
-        smtp_client,
-        cipher: Cipher::new_256(&secret_key),
-    });
-
-    //Drop secret_key as it's no longer needed
-    let _ = secret_key;
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
@@ -168,6 +102,7 @@ async fn main() {
         .layer(Extension(Users::default()))
         .layer(Extension(EventTracker::default()))
         .with_state(app_state);
+
     let serve_router = axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 
@@ -177,4 +112,88 @@ async fn main() {
         },
         _ = serve_router => {}
     };
+}
+
+async fn setup_pool() -> Option<PgPool> {
+    let database_url = match var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(e) => {
+            warn!("Error getting DATABASE_URL env variable : {e}");
+            return None;
+        }
+    };
+
+    let pool = match PgPoolOptions::new().connect(&database_url).await {
+        Ok(pool) => pool,
+        Err(e) => {
+            warn!("Error connecting to the DB : {e}");
+            return None;
+        }
+    };
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    Some(pool)
+}
+
+fn setup_smtp_client() -> Option<SmtpTransport> {
+    let email_smtp_server = match var("EMAIL_SMTP_SERVER") {
+        Ok(server_addr) => server_addr,
+        Err(e) => {
+            warn!("Error getting EMAIL_SMTP_SERVER env variable : {e}");
+            return None;
+        }
+    };
+
+    let email = match var("EMAIL") {
+        Ok(email) => email,
+        Err(e) => {
+            warn!("Error getting EMAIL env variable : {e}");
+            return None;
+        }
+    };
+
+    let email_password = match var("EMAIL_PASSWORD") {
+        Ok(password) => password,
+        Err(e) => {
+            warn!("Error getting EMAIL_PASSWORD env variable : {e}");
+            return None;
+        }
+    };
+
+    let smtp_client = SmtpTransport::relay(&email_smtp_server)
+        .expect("Error creating SMTP client")
+        .credentials(Credentials::new(email, email_password))
+        .build();
+
+    if let Err(e) = smtp_client.test_connection() {
+        warn!("Error while testing connection to the SMTP server : {e}");
+        return None;
+    }
+    info!("SMTP connection successful !");
+
+    Some(smtp_client)
+}
+
+fn setup_cipher() -> Option<Cipher> {
+    let secret_key = match var("ENCODING_KEY") {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("Error getting ENCODING_KEY env variable : {e}");
+            return None;
+        }
+    };
+
+    let secret_key: [u8; 32] = match secret_key.as_bytes().try_into() {
+        Ok(key) => key,
+        Err(e) => {
+            warn!("The encryption key must be 32 bytes : {e}");
+            return None;
+        }
+    };
+
+    Some(Cipher::new_256(&secret_key))
 }

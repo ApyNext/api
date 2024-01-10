@@ -19,7 +19,8 @@ use crate::CONNECTED_USERS_COUNT;
 pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
 pub const SUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "subscribe_to_event";
 pub const UNSUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "unsubscribe_from_event";
-pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
+//TODO uncomment when implemented
+//pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
 pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
 pub const ERROR_EVENT_NAME: &str = "error";
 
@@ -31,7 +32,7 @@ pub struct UserConnection {
 }
 
 impl UserConnection {
-    /// Create a new UserConnection struct, with no subscribed events
+    /// Create a new `UserConnection` struct, with no subscribed events
     pub fn new(sender: SplitSink<WebSocket, Message>) -> Self {
         Self {
             subscribed_events: HashSet::default(),
@@ -120,7 +121,7 @@ impl EventTracker {
             let difference = users_len - users.len();
             if difference > 1 {
                 warn!("Unsubscribed {} users instead of 1", difference);
-                if users.len() == 0 {
+                if users.is_empty() {
                     entry.remove_entry();
                 }
             }
@@ -274,6 +275,7 @@ impl EventTracker {
     }
 }
 
+/// A struct that represents a WS event sent by the server to the user
 pub struct WsEvent;
 
 impl WsEvent {

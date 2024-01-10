@@ -66,7 +66,7 @@ pub async fn register_route(
     };
 
     //Check if username is already used
-    if sqlx::query!(
+    let result = sqlx::query!(
         "SELECT id FROM users WHERE username = $1",
         register_user.username
     )
@@ -78,9 +78,9 @@ pub async fn register_route(
             register_user.username, e
         );
         AppError::internal_server_error()
-    })?
-    .is_some()
-    {
+    })?;
+
+    if result.is_some() {
         warn!(
             "Username `{}` already exists in the database",
             register_user.username
