@@ -19,10 +19,9 @@ pub async fn email_confirm_route(
 ) -> Result<CookieJar, AppError> {
     if body.is_empty() {
         warn!("Token missing");
-        return Err(AppError::new(
-            StatusCode::FORBIDDEN,
-            Some("Token de confirmation d'email manquant."),
-        ));
+        return Err(AppError::forbidden_error(Some(
+            "Token de vérification d'email manquant",
+        )));
     }
     let email_verification_token = urlencoding::decode(&body)
         .map_err(|e| {
@@ -37,7 +36,7 @@ pub async fn email_confirm_route(
     let email = Token::decode(&email_verification_token, &app_state.cipher)?;
 
     //Check if the email is already used
-    let result = sqlx::query!("SELECT id FROM users WHERE email = $1", email)
+    let result = sqlx::query!("SELECT id FROM account WHERE email = $1", email)
         .fetch_optional(&app_state.pool)
         .await
         .map_err(|e| {
@@ -59,7 +58,7 @@ pub async fn email_confirm_route(
     );
 
     sqlx::query!(
-        "UPDATE users SET email = $1, email_verified = TRUE, token = $2 WHERE email = $3;",
+        "UPDATE account SET email = $1, email_verified = TRUE, token = $2 WHERE email = $3;",
         email,
         token,
         email_verification_token

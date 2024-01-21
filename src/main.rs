@@ -21,6 +21,7 @@ use std::sync::Arc;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{info, warn};
 
+use crate::routes::publish_post::publish_post_route;
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use crate::utils::real_time_event_management::EventTracker;
 use crate::utils::real_time_event_management::Users;
@@ -97,6 +98,7 @@ async fn main() {
         .route("/login/a2f", post(a2f_login_route))
         .route("/ws", get(ws_route))
         .route("/@:username/follow", post(follow_user_route))
+        .route("/posts/new", post(publish_post_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger))
         .layer(Extension(Users::default()))

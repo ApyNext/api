@@ -12,6 +12,8 @@ L'API officielle de ApyNext
         - [Vérifier l'email (lien envoyé par email)](#vérifier-lemail-lien-envoyé-par-email)
         - [Se connecter](#se-connecter)
         - [A2F (lien envoyé par email)](#a2f-lien-envoyé-par-email)
+    - [WebSockets](#websockets)
+    - [Suivre un utilisateur](#suivre-un-utilisateur)
 
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser le fichier docker-compose.yml de ce projet :
@@ -104,7 +106,7 @@ Headers :
 **Plus d'informations dans doc/websockets.md**
 
 ## Suivre un utilisateur
-Requête : `POST /:id/follow`
+Requête : `POST /@:username/follow`
 
 Headers :
 - Token Bearer

@@ -42,7 +42,7 @@ pub async fn login_route(
         check_email_address(&username_or_email)?;
         let user = sqlx::query_as!(
             UserForLoginA2FWithoutEmail,
-            "SELECT username, token FROM users WHERE email = $1 AND password = $2",
+            "SELECT username, token FROM account WHERE email = $1 AND password = $2",
             username_or_email,
             password
         )
@@ -61,7 +61,7 @@ pub async fn login_route(
         check_username(&username_or_email)?;
         let user = sqlx::query_as!(
             UserForLoginA2FWithoutUsername,
-            "SELECT email, token FROM users WHERE username = $1 AND password = $2",
+            "SELECT email, token FROM account WHERE username = $1 AND password = $2",
             username_or_email,
             password
         )

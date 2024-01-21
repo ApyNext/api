@@ -47,7 +47,7 @@ where
         .to_string();
         if let Some(user) = sqlx::query_as!(
             InnerAuthUser,
-            "SELECT id FROM users WHERE token = $1 AND email_verified = TRUE",
+            "SELECT id FROM account WHERE token = $1 AND email_verified = TRUE",
             token
         )
         .fetch_optional(&app_state.pool)

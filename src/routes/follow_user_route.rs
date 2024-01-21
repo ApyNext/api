@@ -30,15 +30,12 @@ pub async fn follow_user_route(
 ) -> Result<(), AppError> {
     let Some(auth_user) = auth_user else {
         warn!("Not connected");
-        return Err(AppError::new(
-            StatusCode::FORBIDDEN,
-            Some("Tu dois être connecté pour effectuer cette action."),
-        ));
+        return Err(AppError::you_have_to_be_connected_to_perform_this_action_error());
     };
 
     let user = sqlx::query_as!(
         Record,
-        r#"SELECT id FROM users WHERE username = $1"#,
+        r#"SELECT id FROM account WHERE username = $1"#,
         user_username
     )
     .fetch_optional(&app_state.pool)

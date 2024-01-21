@@ -43,16 +43,19 @@ pub async fn register_route(
     }
 
     //Check if email is already used
-    let row = sqlx::query!("SELECT id FROM users WHERE email = $1", register_user.email)
-        .fetch_optional(&app_state.pool)
-        .await
-        .map_err(|e| {
-            warn!(
-                "Error checking if the email `{}` exists in the database : {}",
-                register_user.email, e
-            );
-            AppError::internal_server_error()
-        })?;
+    let row = sqlx::query!(
+        "SELECT id FROM account WHERE email = $1",
+        register_user.email
+    )
+    .fetch_optional(&app_state.pool)
+    .await
+    .map_err(|e| {
+        warn!(
+            "Error checking if the email `{}` exists in the database : {}",
+            register_user.email, e
+        );
+        AppError::internal_server_error()
+    })?;
 
     if row.is_some() {
         warn!(
@@ -67,7 +70,7 @@ pub async fn register_route(
 
     //Check if username is already used
     let result = sqlx::query!(
-        "SELECT id FROM users WHERE username = $1",
+        "SELECT id FROM account WHERE username = $1",
         register_user.username
     )
     .fetch_optional(&app_state.pool)
@@ -97,7 +100,7 @@ pub async fn register_route(
         &app_state.cipher,
     );
 
-    sqlx::query!("INSERT INTO users (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await.map_err(|e| {
+    sqlx::query!("INSERT INTO account (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await.map_err(|e| {
         warn!("Error creating account for `{}` : {}", register_user.username, e);
         AppError::internal_server_error()
     })?;
