@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::{extractors::auth_extractor::AuthUser, utils::app_error::AppError, AppState};
+use crate::{
+    extractors::auth_extractor::AuthUser, structs::post::Post, utils::app_error::AppError, AppState,
+};
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -43,13 +45,14 @@ pub async fn publish_post_route(
         )));
     }
 
-    if let Err(e) = sqlx::query!(
-        r#"INSERT INTO post (author, title, content) VALUES ($1, $2, $3)"#,
+    if let Err(e) = sqlx::query_as!(
+        Post,
+        r#"INSERT INTO post (author, title, content) VALUES ($1, $2, $3) RETURNING *"#,
         auth_user.id,
         post.title,
         post.content
     )
-    .execute(&app_state.pool)
+    .fetch_one(&app_state.pool)
     .await
     {
         warn!("Error inserting post with author {} : {e}", auth_user.id);

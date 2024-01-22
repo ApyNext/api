@@ -115,3 +115,13 @@ Renvoie :
 - Code de status `200 Ok`
 - Code de status `403 Forbidden` avec le message d'erreur lors d'une erreur client
 - Code de status `500 Internal Server Error` lors d'une erreur serveur
+
+## Gestion de posts
+### Publication de posts
+Requête : `POST /posts/new`
+
+Headers :
+- Token Bearer
+
+Renvoie :
+- Code de status `200 Ok`

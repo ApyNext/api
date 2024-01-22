@@ -12,6 +12,8 @@ The official API of ApyNext
         - [Email confirmation (link sent paby email)](#email-confirmation-link-sent-by-email)
         - [Login](#login)
         - [A2F (link sent by email)](#a2f-link-sent-by-email)
+    - [WebSockets](#websockets)
+    - [Follow an user](#follow-an-user)
 
 # Configuration
 - Configure Postgres on your computer, you can either install it directly (more infos [here](https://www.postgresql.org/docs/15/install-short.html)) - don't forget to set a password for the user postgres - or use the project's docker-compose.yml file :
@@ -93,7 +95,7 @@ Returns :
 - Status code `200 Ok` and an auth token stored as a cookie
 - Status code `403 Forbidden` and the error message when the token is missing, invalid or expired
 
-### WebSockets
+## WebSockets
 Requête : `GET /ws`
 
 Headers :
