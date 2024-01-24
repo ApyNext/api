@@ -17,7 +17,7 @@ pub async fn publish_post_route(
     State(app_state): State<Arc<AppState>>,
     AuthUser(auth_user): AuthUser,
     Json(post): Json<PublishPost>,
-) -> Result<String, AppError> {
+) -> Result<i64, AppError> {
     let Some(auth_user) = auth_user else {
         warn!("User not connected");
         return Err(AppError::you_have_to_be_connected_to_perform_this_action_error());
@@ -45,9 +45,9 @@ pub async fn publish_post_route(
         )));
     }
 
-    if let Err(e) = sqlx::query_as!(
+    let post = match sqlx::query_as!(
         Post,
-        r#"INSERT INTO post (author, title, content) VALUES ($1, $2, $3) RETURNING *"#,
+        r#"WITH inserted_post AS (INSERT INTO post (author_id, title, content) VALUES ($1, $2, $3) RETURNING *) SELECT inserted_post.id, title, content, inserted_post.created_at, inserted_post.updated_at, account.username AS author FROM inserted_post INNER JOIN account ON inserted_post.author_id = account.id"#,
         auth_user.id,
         post.title,
         post.content
@@ -55,9 +55,12 @@ pub async fn publish_post_route(
     .fetch_one(&app_state.pool)
     .await
     {
-        warn!("Error inserting post with author {} : {e}", auth_user.id);
-        return Err(AppError::internal_server_error());
+        Ok(post) => post,
+        Err(e) => {
+            warn!("Error inserting post with author {} : {e}", auth_user.id);
+            return Err(AppError::internal_server_error());
+        },
     };
 
-    Ok("".to_string())
+    Ok(post.id)
 }
