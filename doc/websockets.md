@@ -2,6 +2,9 @@ Documentation des events WebSockets
 
 **English version in the websockets_en.md file**
 
+# Important
+A la connexion, il est nécessaire d'envoyer un event de type Text, contenant le token Bearer.
+
 # Sommaire
 - [Evénements envoyés par le client](#evénements-envoyés-par-le-client)
   - [Structure de base](#structure-de-base)

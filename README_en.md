@@ -14,6 +14,8 @@ The official API of ApyNext
         - [A2F (link sent by email)](#a2f-link-sent-by-email)
     - [WebSockets](#websockets)
     - [Follow an user](#follow-an-user)
+    - [Post Management](#post-management)
+        - [Publish a new post](#publish-a-new-post)
 
 # Configuration
 - Configure Postgres on your computer, you can either install it directly (more infos [here](https://www.postgresql.org/docs/15/install-short.html)) - don't forget to set a password for the user postgres - or use the project's docker-compose.yml file :
@@ -98,12 +100,9 @@ Returns :
 ## WebSockets
 Requête : `GET /ws`
 
-Headers :
-- Bearer token (optional)
-
 **More information in doc/websockets_en.md**
 
-### Follow an user
+## Follow an user
 Request : `POST /:id/follow`
 
 Headers :
@@ -111,5 +110,21 @@ Headers :
 
 Returns :
 - Status code `200 Ok`
+- Status code `403 Forbidden` with the error message when a client error occurs
+- Status code `500 Internal Server Error` when a server error occurs
+
+## Post management
+### Publish a new post
+Request : `POST /posts/new`
+
+Headers :
+- Bearer token
+
+Body (JSON) :
+- title => string
+- content => string
+
+Returns :
+- Status code 200
 - Status code `403 Forbidden` with the error message when a client error occurs
 - Status code `500 Internal Server Error` when a server error occurs

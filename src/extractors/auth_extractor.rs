@@ -8,9 +8,12 @@ use axum::{
     TypedHeader,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::info;
 
-use crate::{utils::app_error::AppError, AppState};
+use crate::{
+    utils::{app_error::AppError, authentification::authentificate},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct InnerAuthUser {
@@ -37,28 +40,6 @@ where
                     return Ok(AuthUser(None));
                 }
             };
-        let token = match urlencoding::decode(typed_header.token()) {
-            Ok(token) => token,
-            Err(e) => {
-                warn!("{e}");
-                return Ok(AuthUser(None));
-            }
-        }
-        .to_string();
-        if let Some(user) = sqlx::query_as!(
-            InnerAuthUser,
-            "SELECT id FROM account WHERE token = $1 AND email_verified = TRUE",
-            token
-        )
-        .fetch_optional(&app_state.pool)
-        .await
-        .map_err(|e| {
-            warn!("Error getting auth user from database : {e}");
-            AppError::internal_server_error()
-        })? {
-            Ok(AuthUser(Some(user)))
-        } else {
-            Ok(AuthUser(None))
-        }
+        authentificate(app_state, typed_header.token()).await
     }
 }

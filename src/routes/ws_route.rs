@@ -15,30 +15,60 @@ use tracing::{info, warn};
 
 use crate::{
     extractors::auth_extractor::{AuthUser, InnerAuthUser},
-    utils::real_time_event_management::{
-        EventTracker, RealTimeEvent, UserConnection, Users, WsEvent,
+    utils::{
+        authentification::authentificate,
+        real_time_event_management::{EventTracker, RealTimeEvent, UserConnection, Users, WsEvent},
     },
     AppState, NEXT_NOT_CONNECTED_USER_ID,
 };
 
 pub async fn ws_route(
     ws: WebSocketUpgrade,
-    AuthUser(auth_user): AuthUser,
+
     Extension(users): Extension<Users>,
     Extension(event_tracker): Extension<EventTracker>,
     State(app_state): State<Arc<AppState>>,
 ) -> Response {
-    ws.on_upgrade(|socket| handle_socket(socket, auth_user, users, event_tracker, app_state))
+    ws.on_upgrade(|socket| handle_socket(socket, users, event_tracker, app_state))
 }
 
 pub async fn handle_socket(
     socket: WebSocket,
-    auth_user: Option<InnerAuthUser>,
+
     users: Users,
     event_tracker: EventTracker,
     app_state: Arc<AppState>,
 ) {
     let (sender, mut receiver) = socket.split();
+
+    let AuthUser(auth_user) = loop {
+        let Some(msg) = receiver.next().await else {
+            warn!("Client didn't send the authentification token.");
+            continue;
+        };
+        let msg = match msg {
+            Ok(msg) => msg,
+            Err(e) => {
+                warn!("Client didn't send a valid message : {e}");
+                continue;
+            }
+        };
+
+        let Message::Text(token) = msg else {
+            warn!("Client sent a non-text event.");
+            continue;
+        };
+
+        let auth_user = match authentificate(app_state.clone(), &token).await {
+            Ok(auth_user) => auth_user,
+            Err(_) => {
+                warn!("Invalid credentials");
+                continue;
+            }
+        };
+
+        break auth_user;
+    };
 
     let user = Arc::new(RwLock::new(UserConnection::new(sender)));
 

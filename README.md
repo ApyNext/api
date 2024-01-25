@@ -100,9 +100,6 @@ Renvoie :
 ## WebSockets
 Requête : `GET /ws`
 
-Headers :
-- Token Bearer (facultatif)
-
 **Plus d'informations dans doc/websockets.md**
 
 ## Suivre un utilisateur
@@ -123,5 +120,11 @@ Requête : `POST /posts/new`
 Headers :
 - Token Bearer
 
+Body (JSON) :
+- title => chaîne de caractères
+- content => chaîne de caractères
+
 Renvoie :
 - Code de status `200 Ok`
+- Code de status `403 Forbidden` avec le message d'erreur lors d'une erreur client
+- Code de status `500 Internal Server Error` lors d'une erreur serveur
