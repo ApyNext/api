@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
 use crate::{
-    extractors::auth_extractor::AuthUser, structs::post::Post, utils::app_error::AppError, AppState,
+    extractors::auth_extractor::AuthUser,
+    structs::post::Post,
+    utils::{
+        app_error::AppError,
+        real_time_event_management::{EventTracker, RealTimeEvent, WsEvent},
+    },
+    AppState,
 };
-use axum::{extract::State, Json};
+use axum::{extract::State, Extension, Json};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -16,8 +22,9 @@ pub struct PublishPost {
 pub async fn publish_post_route(
     State(app_state): State<Arc<AppState>>,
     AuthUser(auth_user): AuthUser,
+    Extension(event_tracker): Extension<EventTracker>,
     Json(post): Json<PublishPost>,
-) -> Result<i64, AppError> {
+) -> Result<String, AppError> {
     let Some(auth_user) = auth_user else {
         warn!("User not connected");
         return Err(AppError::you_have_to_be_connected_to_perform_this_action_error());
@@ -62,5 +69,16 @@ pub async fn publish_post_route(
         },
     };
 
-    Ok(post.id)
+    let event = WsEvent::new_new_post_notification_event(&post);
+
+    event_tracker
+        .notify(
+            RealTimeEvent::NewPostNotification {
+                followed_user_id: auth_user.id,
+            },
+            event.to_string(),
+        )
+        .await;
+
+    Ok(post.id.to_string())
 }

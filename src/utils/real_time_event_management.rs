@@ -14,13 +14,12 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use crate::CONNECTED_USERS_COUNT;
+use crate::{structs::post::Post, CONNECTED_USERS_COUNT};
 
 pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
 pub const SUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "subscribe_to_event";
 pub const UNSUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "unsubscribe_from_event";
-//TODO uncomment when implemented
-//pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
+pub const NEW_POST_NOTIFICATION_EVENT_NAME: &str = "new_post_notification";
 pub const CONNECTED_USERS_COUNT_UPDATE_EVENT_NAME: &str = "connected_users_count_update";
 pub const ERROR_EVENT_NAME: &str = "error";
 
@@ -285,15 +284,12 @@ pub struct WsEvent;
 
 impl WsEvent {
     //TODO change content to a Post struct
-    /*pub fn new_new_post_modification_event(author: &str, content: &str) -> serde_json::Value {
+    pub fn new_new_post_notification_event(post: &Post) -> serde_json::Value {
         json! ({
             "event": NEW_POST_NOTIFICATION_EVENT_NAME,
-            "content": {
-                "author": author,
-                "content": content
-            },
+            "content": post,
         })
-    }*/
+    }
 
     pub fn new_connected_users_count_update_event(count: usize) -> serde_json::Value {
         json! ({
