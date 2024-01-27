@@ -1,8 +1,7 @@
-use serde::Deserialize;
+use serde::Serialize;
 use time::OffsetDateTime;
 
-#[derive(Deserialize)]
-pub struct User {
+pub struct Account {
     pub id: i64,
     pub username: String,
     pub email: String,
@@ -16,12 +15,20 @@ pub struct User {
     pub updated_at: OffsetDateTime,
     pub email_verified: bool,
     pub is_banned: bool,
-    pub permission: UserPermission,
+    pub permission: i64,
 }
 
-#[derive(Deserialize)]
-pub enum UserPermission {
-    User = 0,
-    Moderator = 1,
-    Administrator = 2,
+pub struct PublicAccount {
+    pub id: i64,
+    pub username: String,
+    pub biography: String,
+    pub created_at: OffsetDateTime,
+    pub permission: i64,
 }
+
+// #[derive(sqlx::FromRow, Serialize)]
+// pub enum AccountPermission {
+//     User = 0,
+//     Moderator = 1,
+//     Administrator = 2,
+// }

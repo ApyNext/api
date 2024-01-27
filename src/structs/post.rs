@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use time::OffsetDateTime;
 
-#[derive(Serialize, Deserialize)]
+/*#[derive(Serialize, Deserialize)]
 pub struct Post {
     pub id: i64,
     pub author: String,
@@ -9,4 +9,21 @@ pub struct Post {
     pub content: String,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
+}*/
+
+#[derive(sqlx::FromRow, Serialize)]
+pub struct PublicPost {
+    pub id: i64,
+    pub author: Author,
+    pub title: String,
+    pub content: String,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(sqlx::FromRow, Serialize)]
+pub struct Author {
+    pub id: i64,
+    pub username: String,
+    pub permission: i64,
 }
