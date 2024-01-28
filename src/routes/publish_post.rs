@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::models::post::NewPost;
 use crate::{
     extractors::auth_extractor::AuthUser,
-    structs::post::PublicPost,
     utils::{
         app_error::AppError,
         real_time_event_management::{EventTracker, RealTimeEvent, WsEvent},
@@ -10,20 +10,13 @@ use crate::{
     AppState,
 };
 use axum::{extract::State, Extension, Json};
-use serde::{Deserialize, Serialize};
 use tracing::warn;
-
-#[derive(Serialize, Deserialize)]
-pub struct PublishPost {
-    title: String,
-    content: String,
-}
 
 pub async fn publish_post_route(
     State(app_state): State<Arc<AppState>>,
     AuthUser(auth_user): AuthUser,
     Extension(event_tracker): Extension<EventTracker>,
-    Json(post): Json<PublishPost>,
+    Json(post): Json<NewPost>,
 ) -> Result<String, AppError> {
     let Some(auth_user) = auth_user else {
         warn!("User not connected");
@@ -52,12 +45,13 @@ pub async fn publish_post_route(
         )));
     }
 
-    let post = match sqlx::query_as::<_, PublicPost>(
+    let post = match sqlx::query_as!(
+        PublicPost,
         r#"WITH inserted_post AS (INSERT INTO post (author_id, title, content) VALUES ($1, $2, $3) RETURNING *) SELECT inserted_post.id, title, content, inserted_post.created_at, inserted_post.updated_at, account.id AS "author.id", account.username AS "author.username" FROM inserted_post JOIN account ON inserted_post.author_id = account.id"#,
+        auth_user.id,
+        post.title,
+        post.content,
     )
-    .bind(auth_user.id)
-    .bind(post.title)
-    .bind(post.content)
     .fetch_one(&app_state.pool)
     .await
     {

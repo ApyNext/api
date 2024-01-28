@@ -2,11 +2,14 @@ use std::sync::Arc;
 
 use axum::{extract::State, Json};
 use chrono::Duration;
+use diesel::prelude::*;
+use diesel::RunQueryDsl;
 use hyper::StatusCode;
 use lettre::Address;
 use time::OffsetDateTime;
 use tracing::warn;
 
+use crate::models::account::NewAccount;
 use crate::utils::app_error::AppError;
 use crate::utils::register::check_register_infos;
 use crate::utils::register::hash_password;
@@ -42,12 +45,13 @@ pub async fn register_route(
         ));
     }
 
-    //Check if email is already used
-    let row = sqlx::query!(
-        "SELECT id FROM account WHERE email = $1",
-        register_user.email
-    )
-    .fetch_optional(&app_state.pool)
+    //TODO Check if email is already used
+    /*let row = crate::schema::account::dsl::account
+            .filter(crate::schema::account::dsl::email.eq(email))
+            .limit(1)
+            .count();
+    */
+    /*
     .await
     .map_err(|e| {
         warn!(
@@ -66,10 +70,10 @@ pub async fn register_route(
             StatusCode::FORBIDDEN,
             Some("Email déjà utilisé."),
         ));
-    };
+    };*/
 
-    //Check if username is already used
-    let result = sqlx::query!(
+    //TODO Check if username is already used
+    /*let result = sqlx::query!(
         "SELECT id FROM account WHERE username = $1",
         register_user.username
     )
@@ -92,7 +96,7 @@ pub async fn register_route(
             StatusCode::FORBIDDEN,
             Some("Nom d'utilisateur déjà utilisé."),
         ));
-    };
+    };*/
 
     let email_confirm_token = Token::create(
         register_user.email.clone(),
@@ -100,10 +104,23 @@ pub async fn register_route(
         &app_state.cipher,
     );
 
-    sqlx::query!("INSERT INTO account (username, email, password, birthdate, is_male, token) VALUES ($1, $2, $3, $4, $5, $6);", register_user.username, email_confirm_token, password, birthdate, register_user.is_male, email_confirm_token).execute(&app_state.pool).await.map_err(|e| {
-        warn!("Error creating account for `{}` : {}", register_user.username, e);
-        AppError::internal_server_error()
-    })?;
+    use crate::schema::account::dsl::account;
+
+    let new_account = NewAccount {
+        username: register_user.username.to_string(),
+        email: email_confirm_token.to_string(),
+        password,
+        birthdate,
+        token: email_confirm_token.to_string(),
+        is_male: register_user.is_male.clone(),
+    };
+
+    let pool = &app_state.pool;
+
+    diesel::insert_into(account)
+        .values(&new_account)
+        .execute(pool.get_mut());
+
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
 
     send_html_message(

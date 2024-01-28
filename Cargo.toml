@@ -12,6 +12,7 @@ axum-extra = { version = "0.8.0", features = ["cookie"] }
 axum-macros = "0.3.8"
 base64 = "0.21.2"
 chrono = "0.4.26"
+dotenvy = "0.15.7"
 email_address = "0.2.4"
 futures = "0.3.28"
 futures-channel = "0.3.28"

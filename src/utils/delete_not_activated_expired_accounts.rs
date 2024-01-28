@@ -1,17 +1,23 @@
-use std::time::Duration;
+use std::{ops::Sub, time::Duration};
 
-use sqlx::PgPool;
+use diesel::prelude::*;
+use diesel::{ExpressionMethods, PgConnection, QueryDsl};
+use time::OffsetDateTime;
+use tokio::sync::RwLock;
 use tracing::info;
 
-struct DeleteNotActivatedExpiredAccountsResult {
-    total: i64,
-}
-
-pub async fn delete_not_activated_expired_accounts(pool: &PgPool) {
+pub async fn delete_not_activated_expired_accounts(mut pool: RwLock<PgConnection>) {
     let mut interval = tokio::time::interval(Duration::from_secs(86400));
     loop {
         interval.tick().await;
-        let count = sqlx::query_as!(DeleteNotActivatedExpiredAccountsResult, r#"WITH updated_rows AS (DELETE FROM account WHERE email_verified = FALSE AND created_at + INTERVAL '10 minutes' < NOW() RETURNING id) SELECT COUNT(id) AS "total!" FROM updated_rows"#).fetch_one(pool).await.unwrap();
-        info!("Deleted {} useless account.s", count.total);
+        use crate::schema::account::dsl::*;
+        let count = diesel::delete(
+            account
+                .filter(email_verified.eq(false))
+                .filter(created_at.lt(OffsetDateTime::now_utc().sub(Duration::from_secs(600)))),
+        )
+        .execute(pool.get_mut())
+        .unwrap();
+        info!("Deleted {} useless account.s", count);
     }
 }

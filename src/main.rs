@@ -1,7 +1,9 @@
 #![warn(clippy::pedantic)]
 mod extractors;
 mod middleware;
+mod models;
 mod routes;
+mod schema;
 mod structs;
 mod utils;
 
@@ -10,15 +12,16 @@ use axum::{
     routing::{get, post},
 };
 use axum::{Extension, Router};
+use dotenvy::dotenv;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::ws_route::ws_route;
+use sqlx::PgPool;
 use std::env::var;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, AtomicUsize};
 use std::sync::Arc;
 
-use sqlx::postgres::PgPoolOptions;
 use tracing::{info, warn};
 
 use crate::routes::publish_post::publish_post_route;
@@ -35,7 +38,6 @@ use routes::email_confirm_route::email_confirm_route;
 use routes::login_route::login_route;
 use routes::ok_route::ok_route;
 use routes::register_route::register_route;
-use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
 /// The global state of the app
@@ -51,6 +53,7 @@ static CONNECTED_USERS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     tracing_subscriber::fmt().init();
 
     let Some(pool) = setup_pool().await else {
@@ -109,14 +112,14 @@ async fn main() {
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 
     tokio::select! {
-        () = delete_not_activated_expired_accounts(&pool) => {
+        () = delete_not_activated_expired_accounts(pool) => {
             warn!("This should never happen");
         },
         _ = serve_router => {}
     };
 }
 
-async fn setup_pool() -> Option<PgPool> {
+async fn setup_pool() -> Option<PgConnection> {
     let database_url = match var("DATABASE_URL") {
         Ok(url) => url,
         Err(e) => {
@@ -125,18 +128,13 @@ async fn setup_pool() -> Option<PgPool> {
         }
     };
 
-    let pool = match PgPoolOptions::new().connect(&database_url).await {
+    let pool = match PgConnection::establish(&database_url) {
         Ok(pool) => pool,
         Err(e) => {
             warn!("Error connecting to the DB : {e}");
             return None;
         }
     };
-
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run migrations");
 
     Some(pool)
 }
