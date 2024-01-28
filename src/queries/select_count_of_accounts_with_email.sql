@@ -1,0 +1,1 @@
+SELECT id FROM account WHERE email = $1 limit 1;

@@ -1,4 +1,4 @@
-use crate::structs::register_user::RegisterUser;
+use crate::routes::register_route::NewAccount;
 use crate::utils::app_error::AppError;
 use email_address::EmailAddress;
 use hyper::StatusCode;
@@ -90,7 +90,7 @@ pub fn check_email_address(email: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
+pub fn check_register_infos(user: &NewAccount) -> Result<(), AppError> {
     check_username(&user.username)?;
 
     check_email_address(&user.email)?;
@@ -101,6 +101,20 @@ pub fn check_register_infos(user: &RegisterUser) -> Result<(), AppError> {
             StatusCode::FORBIDDEN,
             Some("Mot de passe trop court."),
         ));
+    }
+
+    if let Some(biography) = &user.biography {
+        if biography.len() > 300 {
+            warn!(
+                "Biography `{}` to long ({}/300)",
+                biography,
+                biography.len()
+            );
+            return Err(AppError::forbidden_error(Some(format!(
+                "Biographie trop longue {}/300",
+                biography.len()
+            ))));
+        }
     }
 
     Ok(())

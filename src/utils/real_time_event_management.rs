@@ -14,7 +14,7 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use crate::{structs::post::PublicPost, CONNECTED_USERS_COUNT};
+use crate::{models::post::PublicPost, CONNECTED_USERS_COUNT};
 
 pub type Users = Arc<RwLock<HashMap<i64, Vec<Arc<RwLock<UserConnection>>>>>>;
 pub const SUBSCRIBE_TO_EVENT_ACTION_NAME: &str = "subscribe_to_event";
@@ -283,7 +283,6 @@ impl EventTracker {
 pub struct WsEvent;
 
 impl WsEvent {
-    //TODO change content to a Post struct
     pub fn new_new_post_notification_event(post: &PublicPost) -> serde_json::Value {
         json! ({
             "event": NEW_POST_NOTIFICATION_EVENT_NAME,

@@ -49,6 +49,8 @@ Body (JSON) :
 - email => string of a valid email
 - password => string containing at least 8 characters
 - birthdate => Unix timestamp since 1900 to today
+- dark_mode => boolean (optional)
+- biography => string of less than 300 characters (optional)
 - is_male (optional for privacy reasons) => boolean (true for a man and false for a woman)
 
 Returns :
@@ -127,4 +129,33 @@ Body (JSON) :
 Returns :
 - Status code 200
 - Status code `403 Forbidden` with the error message when a client error occurs
+- Status code `500 Internal Server Error` when a server error occurs
+
+### Get posts
+Request : `GET /posts`
+
+Headers :
+- Bearer token (optional)
+
+Query :
+- limit => number superior or equal to 0 (optional) -> limit of the posts sent
+- offset => number superior or equal to 0 (optional) -> number of posts skipped
+
+Returns :
+- Status code `200 Ok`
+    Body (JSON) :
+    [
+        {
+            - id => number
+            - author {
+                - id => number
+                - username => string
+                - permission => number representing the permission of the user (0 = User, 1 = Moderator and 2 = Administrator)
+            }
+            - title => string
+            - content => string
+            - created_at => UTC timestamp of the post's creation
+            - updated_at => UTC timestamp of the last post's update
+        }
+    ]
 - Status code `500 Internal Server Error` when a server error occurs

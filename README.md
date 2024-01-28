@@ -14,6 +14,7 @@ L'API officielle de ApyNext
         - [A2F (lien envoyé par email)](#a2f-lien-envoyé-par-email)
     - [WebSockets](#websockets)
     - [Suivre un utilisateur](#suivre-un-utilisateur)
+    - [Obtention des posts](#obtention-des-posts)
 
 # Configuration
 - Configurez Postgres sur votre machine, vous pouvez l'installer directement (plus d'infos [ici](https://www.postgresql.org/docs/15/install-short.html)) - choisissez également un mot de passe pour l'utilisateur postgres de la base de données - ou vous pouvez juste utiliser le fichier docker-compose.yml de ce projet :
@@ -49,6 +50,8 @@ Body (JSON) :
 - email => chaîne de caractères d'un email valide
 - password => chaîne de caractères contenant au moins 8 caractères
 - birthdate => timestamp Unix entre 1900 et aujourd'hui
+- dark_mode => booléen (facultatif)
+- biography => chaîne de caractères de moins de 300 caractères (facultatif)
 - is_male (facultatif pour des raisons de confidentialité) => booléen (true pour un homme et false pour une femme)
 
 Renvoie :
@@ -127,4 +130,34 @@ Body (JSON) :
 Renvoie :
 - Code de status `200 Ok`
 - Code de status `403 Forbidden` avec le message d'erreur lors d'une erreur client
+- Code de status `500 Internal Server Error` lors d'une erreur serveur
+
+### Obtention des posts
+Requête : `GET /posts`
+
+Headers :
+- Token Bearer (facultatif)
+
+Query :
+- limit => nombre supérieur ou égal à 0 (facultatif) -> limite des posts envoyés
+- offset => nombre supérieur ou égal à 0 (facultatif) -> nombre de posts ignorés
+
+Renvoie :
+- Code de status `200 Ok`
+    Body (JSON) :
+    [
+        {
+            - id => nombre
+            - author {
+                - id => nombre
+                - username => chaîne de caractères
+                - permission => nombre représentant la permission de l'utilisateur (0 = Utilisateur, 1 = Modérateur et 2 = Administrateur)
+            }
+            - title => chaîne de caractères
+            - content => chaîne de caractères
+            - created_at => timestamp UTC de la création du post
+            - updated_at => timestamp UTC de la dernière modification du post
+        }
+    ]
+    
 - Code de status `500 Internal Server Error` lors d'une erreur serveur

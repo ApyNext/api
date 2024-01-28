@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::structs::login_user::LoginUser;
 use crate::utils::app_error::AppError;
 use crate::utils::register::hash_password;
 use crate::utils::register::send_html_message;
@@ -13,6 +12,7 @@ use axum::Json;
 use chrono::Duration;
 use hyper::StatusCode;
 use lettre::Address;
+use serde::Deserialize;
 use tracing::warn;
 
 struct UserForLoginA2F {
@@ -29,6 +29,12 @@ struct UserForLoginA2FWithoutUsername {
 struct UserForLoginA2FWithoutEmail {
     username: String,
     token: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginUser {
+    pub username_or_email: String,
+    pub password: String,
 }
 
 pub async fn login_route(

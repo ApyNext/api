@@ -1,18 +1,29 @@
-use diesel::prelude::Insertable;
-use diesel::prelude::Identifiable;
-use serde::Deserialize;
-use crate::schema::{post::dsl::post, post_author::dsl::post_author};
+use time::OffsetDateTime;
 
-#[derive(Insertable, Deserialize)]
-#[diesel(table_name = post)]
-pub struct NewPost {
-    title: String,
-    content: String,
+use super::account::AccountPermission;
+
+pub struct Post {
+    pub id: i64,
+    pub title: String,
+    pub content: String,
+    pub author: PublicPostAuthor,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
 }
 
-#[derive(Identifiable)]
-#[diesel(table_name = post_author)]
-pub struct PostAuthor {
-    post_id: i64,
-    author_id: i64
+#[derive(serde::Serialize)]
+pub struct PublicPost {
+    pub id: i64,
+    pub author: PublicPostAuthor,
+    pub title: String,
+    pub content: String,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(serde::Serialize)]
+pub struct PublicPostAuthor {
+    pub id: i64,
+    pub username: String,
+    pub permission: AccountPermission,
 }

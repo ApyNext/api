@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use crate::models::post::NewPost;
+use crate::models::account::AccountPermission;
+use crate::models::post::{PublicPost, PublicPostAuthor};
 use crate::{
     extractors::auth_extractor::AuthUser,
     utils::{
@@ -10,7 +11,14 @@ use crate::{
     AppState,
 };
 use axum::{extract::State, Extension, Json};
+use time::OffsetDateTime;
 use tracing::warn;
+
+#[derive(serde::Deserialize)]
+pub struct NewPost {
+    pub title: String,
+    pub content: String,
+}
 
 pub async fn publish_post_route(
     State(app_state): State<Arc<AppState>>,
@@ -45,9 +53,20 @@ pub async fn publish_post_route(
         )));
     }
 
-    let post = match sqlx::query_as!(
-        PublicPost,
-        r#"WITH inserted_post AS (INSERT INTO post (author_id, title, content) VALUES ($1, $2, $3) RETURNING *) SELECT inserted_post.id, title, content, inserted_post.created_at, inserted_post.updated_at, account.id AS "author.id", account.username AS "author.username" FROM inserted_post JOIN account ON inserted_post.author_id = account.id"#,
+    struct PostWithAuthorWrong {
+        id: i64,
+        title: String,
+        content: String,
+        created_at: OffsetDateTime,
+        updated_at: OffsetDateTime,
+        author_id: i64,
+        author_username: String,
+        author_permission: AccountPermission,
+    }
+
+    let post = match sqlx::query_file_as!(
+        PostWithAuthorWrong,
+        "./src/queries/insert_post.sql",
         auth_user.id,
         post.title,
         post.content,
@@ -59,7 +78,20 @@ pub async fn publish_post_route(
         Err(e) => {
             warn!("Error inserting post with author {} : {e}", auth_user.id);
             return Err(AppError::internal_server_error());
+        }
+    };
+
+    let post = PublicPost {
+        id: post.id,
+        title: post.title,
+        content: post.content,
+        author: PublicPostAuthor {
+            id: post.author_id,
+            username: post.author_username,
+            permission: post.author_permission,
         },
+        created_at: post.created_at,
+        updated_at: post.updated_at,
     };
 
     let event = WsEvent::new_new_post_notification_event(&post);

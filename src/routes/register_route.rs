@@ -2,24 +2,32 @@ use std::sync::Arc;
 
 use axum::{extract::State, Json};
 use chrono::Duration;
-use diesel::prelude::*;
-use diesel::RunQueryDsl;
 use hyper::StatusCode;
 use lettre::Address;
 use time::OffsetDateTime;
 use tracing::warn;
 
-use crate::models::account::NewAccount;
 use crate::utils::app_error::AppError;
 use crate::utils::register::check_register_infos;
 use crate::utils::register::hash_password;
 use crate::utils::token::Token;
 use crate::FRONT_URL;
-use crate::{structs::register_user::RegisterUser, utils::register::send_html_message, AppState};
+use crate::{utils::register::send_html_message, AppState};
+
+#[derive(serde::Deserialize)]
+pub struct NewAccount {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub birthdate: i64,
+    pub dark_mode: Option<bool>,
+    pub biography: Option<String>,
+    pub is_male: Option<bool>,
+}
 
 pub async fn register_route(
     State(app_state): State<Arc<AppState>>,
-    Json(mut register_user): Json<RegisterUser>,
+    Json(mut register_user): Json<NewAccount>,
 ) -> Result<StatusCode, AppError> {
     register_user.username = register_user.username.to_lowercase();
     register_user.email = register_user.email.to_lowercase();
@@ -45,13 +53,12 @@ pub async fn register_route(
         ));
     }
 
-    //TODO Check if email is already used
-    /*let row = crate::schema::account::dsl::account
-            .filter(crate::schema::account::dsl::email.eq(email))
-            .limit(1)
-            .count();
-    */
-    /*
+    //Check if email is already used
+    let result = sqlx::query_file!(
+        "./src/queries/select_count_of_accounts_with_email.sql",
+        register_user.email
+    )
+    .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| {
         warn!(
@@ -61,20 +68,17 @@ pub async fn register_route(
         AppError::internal_server_error()
     })?;
 
-    if row.is_some() {
+    if result.is_some() {
         warn!(
             "Email `{}` already exists in the database",
             register_user.email
         );
-        return Err(AppError::new(
-            StatusCode::FORBIDDEN,
-            Some("Email déjà utilisé."),
-        ));
-    };*/
+        return Err(AppError::forbidden_error(Some("Email déjà utilisé.")));
+    };
 
-    //TODO Check if username is already used
-    /*let result = sqlx::query!(
-        "SELECT id FROM account WHERE username = $1",
+    //Check if username is already used
+    let result = sqlx::query_file!(
+        "./src/queries/select_count_of_accounts_with_username.sql",
         register_user.username
     )
     .fetch_optional(&app_state.pool)
@@ -92,34 +96,38 @@ pub async fn register_route(
             "Username `{}` already exists in the database",
             register_user.username
         );
-        return Err(AppError::new(
-            StatusCode::FORBIDDEN,
-            Some("Nom d'utilisateur déjà utilisé."),
-        ));
-    };*/
+        return Err(AppError::forbidden_error(Some(
+            "Nom d'utilisateur déjà utilisé.",
+        )));
+    };
 
+    //Generate the email confirmation token
     let email_confirm_token = Token::create(
         register_user.email.clone(),
         Duration::minutes(10),
         &app_state.cipher,
     );
 
-    use crate::schema::account::dsl::account;
-
-    let new_account = NewAccount {
-        username: register_user.username.to_string(),
-        email: email_confirm_token.to_string(),
+    sqlx::query_file!(
+        "./src/queries/insert_account.sql",
+        register_user.username,
+        email_confirm_token,
         password,
         birthdate,
-        token: email_confirm_token.to_string(),
-        is_male: register_user.is_male.clone(),
-    };
-
-    let pool = &app_state.pool;
-
-    diesel::insert_into(account)
-        .values(&new_account)
-        .execute(pool.get_mut());
+        register_user.dark_mode,
+        register_user.biography,
+        email_confirm_token,
+        register_user.is_male,
+    )
+    .execute(&app_state.pool)
+    .await
+    .map_err(|e| {
+        warn!(
+            "Error inserting account with username `{}` : {e}",
+            register_user.username
+        );
+        AppError::internal_server_error()
+    })?;
 
     let email_confirm_token = urlencoding::encode(&email_confirm_token).to_string();
 

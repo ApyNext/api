@@ -1,31 +1,43 @@
-use crate::schema::account;
-use diesel::{
-    prelude::{Insertable, Queryable},
-    sql_types::Timestamptz,
-    Selectable,
-};
 use time::OffsetDateTime;
 
-#[derive(Insertable)]
-#[diesel(table_name = account)]
-pub struct NewAccount {
+pub struct Account {
+    pub id: i64,
     pub username: String,
     pub email: String,
     pub password: String,
     pub birthdate: OffsetDateTime,
-    //TODO perhaps add it
-    //pub dark_mode: bool,
-    //pub biography: String,
+    pub dark_mode: bool,
+    pub biography: String,
     pub token: String,
     pub is_male: Option<bool>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+    pub email_verified: bool,
+    pub is_banned: bool,
+    pub permission: i64,
 }
 
-#[derive(Selectable, Queryable)]
-#[diesel(table_name = account)]
-pub struct PublicAccount<'a> {
+pub struct PublicAccount {
     pub id: i64,
-    pub username: &'a str,
-    pub biography: &'a str,
+    pub username: String,
+    pub biography: String,
     pub created_at: OffsetDateTime,
-    pub permission: u8,
+    pub permission: AccountPermission,
+}
+
+#[derive(serde::Serialize)]
+pub enum AccountPermission {
+    User = 0,
+    Moderator = 1,
+    Administrator = 2,
+}
+
+impl From<i32> for AccountPermission {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => AccountPermission::Moderator,
+            2 => AccountPermission::Administrator,
+            _ => AccountPermission::User,
+        }
+    }
 }

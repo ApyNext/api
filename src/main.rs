@@ -3,8 +3,6 @@ mod extractors;
 mod middleware;
 mod models;
 mod routes;
-mod schema;
-mod structs;
 mod utils;
 
 use axum::{
@@ -16,7 +14,7 @@ use dotenvy::dotenv;
 use libaes::Cipher;
 use routes::follow_user_route::follow_user_route;
 use routes::ws_route::ws_route;
-use sqlx::PgPool;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::env::var;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, AtomicUsize};
@@ -24,7 +22,7 @@ use std::sync::Arc;
 
 use tracing::{info, warn};
 
-use crate::routes::publish_post::publish_post_route;
+use crate::routes::{get_posts::get_posts_route, publish_post::publish_post_route};
 use crate::utils::delete_not_activated_expired_accounts::delete_not_activated_expired_accounts;
 use crate::utils::real_time_event_management::EventTracker;
 use crate::utils::real_time_event_management::Users;
@@ -69,7 +67,7 @@ async fn main() {
     };
 
     let app_state = Arc::new(AppState {
-        pool: pool.clone(),
+        pool,
         smtp_client,
         cipher,
     });
@@ -102,24 +100,25 @@ async fn main() {
         .route("/ws", get(ws_route))
         .route("/@:username/follow", post(follow_user_route))
         .route("/posts/new", post(publish_post_route))
+        .route("/posts", get(get_posts_route))
         .layer(cors)
         .layer(axum_middleware::from_fn(logger))
         .layer(Extension(Users::default()))
         .layer(Extension(EventTracker::default()))
-        .with_state(app_state);
+        .with_state(app_state.clone());
 
     let serve_router = axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
 
     tokio::select! {
-        () = delete_not_activated_expired_accounts(pool) => {
+        () = delete_not_activated_expired_accounts(&app_state) => {
             warn!("This should never happen");
         },
         _ = serve_router => {}
     };
 }
 
-async fn setup_pool() -> Option<PgConnection> {
+async fn setup_pool() -> Option<PgPool> {
     let database_url = match var("DATABASE_URL") {
         Ok(url) => url,
         Err(e) => {
@@ -128,7 +127,7 @@ async fn setup_pool() -> Option<PgConnection> {
         }
     };
 
-    let pool = match PgConnection::establish(&database_url) {
+    let pool = match PgPoolOptions::new().connect(&database_url).await {
         Ok(pool) => pool,
         Err(e) => {
             warn!("Error connecting to the DB : {e}");
