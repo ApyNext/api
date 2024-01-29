@@ -14,10 +14,9 @@ A la connexion, il est nécessaire d'envoyer un event de type Text, contenant le
   - [Contenu](#contenu)
     - [Nombre d'utilisateurs connectés](#nombre-dutilisateurs-connectés)
 - [Evénements envoyés par le serveur](#evénements-envoyés-par-le-serveur)
-  - [Structure de base](#structure-de-base-1)
-  - [Evénements](#evénements)
-    - [Changement du nombre d'utilisateurs connectés](#changement-du-nombre-dutilisateurs-connectés)
-    - [Erreur](#erreur)
+  - [Changement du nombre d'utilisateurs connectés](#changement-du-nombre-dutilisateurs-connectés)
+  - [Nouveau post publié par un utilisateur suivi](#nouveau-post-publié-par-un-utilisateur-suivi)
+  - [Erreur](#erreur)
 
 # Evénements envoyés par le client
 ## Structure de base
@@ -48,21 +47,35 @@ Exemple :
 ```
 
 # Evénements envoyés par le serveur
-## Structure de base
+## Changement du nombre d'utilisateurs connectés
 ```json
 {
-  "event": String,
-  "content": //contenu
+  "event": "connected_users_count_update",
+  "content": <nombre> //nombre d'utilisateurs connectés
 }
 ```
 
-## Evénements
-### Changement du nombre d'utilisateurs connectés
-event = "connected_users_count_update"
+## Nouveau post publié par un utilisateur suivi
+```json
+{
+  "event": "new_post_notification",
+  "content": {
+    "id": <nombre>, //id du post
+    "title": <chaîne de caractères>, //titre du post
+    "author": {
+        "id": <nombre>, //id de l'auteur
+        "username": <chaîne de caractères>, //nom d'utilisateur de l'auteur
+        "permission": <nombre>, //permission de l'auteur : 0 = Utilisateur, 1 = Modérateur et 2 = Administrateur
+    },
+    "created_at": <timestamp UTC> //date de création du post
+  }
+}
+```
 
-content: usize = nombre d'utilisateurs connectés
-
-### Erreur
-event = "error"
-
-content: String = message d'erreur
+## Erreur
+```json
+{
+  "event": "error",
+  "content": <chaîne de caractères> //message d'erreur
+}
+```

@@ -16,6 +16,7 @@ The official API of ApyNext
     - [Follow an user](#follow-an-user)
     - [Post Management](#post-management)
         - [Publish a new post](#publish-a-new-post)
+        - [Get posts](#get-posts)
 
 # Configuration
 - Configure Postgres on your computer, you can either install it directly (more infos [here](https://www.postgresql.org/docs/15/install-short.html)) - don't forget to set a password for the user postgres - or use the project's docker-compose.yml file :
@@ -124,7 +125,6 @@ Headers :
 
 Body (JSON) :
 - title => string
-- description => string
 - content => string
 
 Returns :
@@ -145,18 +145,20 @@ Query :
 Returns :
 - Status code `200 Ok`
     Body (JSON) :
+    ```json
     [
         {
-            - id => number
-            - author {
-                - id => number
-                - username => string
-                - permission => number representing the permission of the user (0 = User, 1 = Moderator and 2 = Administrator)
-            }
-            - title => string
-            - content => string
-            - created_at => UTC timestamp of the post's creation
-            - updated_at => UTC timestamp of the last post's update
+            "id": <number>, //post id
+            "author": {
+                "id": <number>, //author id
+                "username": <string>, //author username
+                "permission": <number>, //author permission (0 = User, 1 = Moderator et 2 = Administrator)
+            },
+            "title": <string>, //post title
+            "content": <string>, //post content
+            "created_at": <timestamp UTC>, //post creation date
+            "updated_at": <timestamp UTC> //post's last modification date
         }
     ]
+    ```
 - Status code `500 Internal Server Error` when a server error occurs

@@ -14,10 +14,9 @@ When connecting, it is required to send a Text event containing the Bearer token
   - [Content](#content)
     - [Connected users count update](#connected-users-count-update)
 - [Evénements envoyés par le serveur](#events-sent-by-server)
-  - [Base structure](#base-structure-1)
-  - [Events](#events)
-    - [Connected users count update](#connected-users-count-update-1)
-    - [Error](#error)
+  - [Connected users count update](#connected-users-count-update-1)
+  - [New post published by an user followed](#new-post-published-by-an-user-followed)
+  - [Error](#error)
 
 # Events sent by client
 ## Base structure
@@ -48,21 +47,35 @@ Example :
 ```
 
 # Events sent by server
-## Base structure
+## Connected users count update
 ```json
 {
-  "event": String,
-  "content": //content
+  "event": "connected_users_count_update",
+  "content": <number> //number of users connected
 }
 ```
 
-## Events
-### Connected users count update
-event = "connected_users_count_update"
+## New post published by an user followed
+```json
+{
+  "event": "new_post_notification",
+  "content": {
+    "id": <number>, //post id
+    "title": <string>, //post title
+    "author": {
+        "id": <number>, //author id
+        "username": <string>, //author username
+        "permission": <number>, //author permission : 0 = User, 1 = Moderator and 2 = Administrator
+    },
+    "created_at": <UTC timestamp> //post creation date
+  }
+}
+```
 
-content: usize = connected user count
-
-### Error
-event = "error"
-
-content: String = error message
+## Error
+```json
+{
+  "event": "error",
+  "content": <string> //error message
+}
+```

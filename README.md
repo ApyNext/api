@@ -146,19 +146,20 @@ Query :
 Renvoie :
 - Code de status `200 Ok`
     Body (JSON) :
+    ```json
     [
         {
-            - id => nombre
-            - author {
-                - id => nombre
-                - username => chaîne de caractères
-                - permission => nombre représentant la permission de l'utilisateur (0 = Utilisateur, 1 = Modérateur et 2 = Administrateur)
-            }
-            - title => chaîne de caractères
-            - content => chaîne de caractères
-            - created_at => timestamp UTC de la création du post
-            - updated_at => timestamp UTC de la dernière modification du post
+            "id": <nombre>, //id du post
+            "author": {
+                "id": <nombre>, //id de l'auteur
+                "username": <chaîne de caractères>, //nom d'utilisateur de l'auteur
+                "permission": <nombre>, //permission de l'auteur (0 = Utilisateur, 1 = Modérateur et 2 = Administrateur)
+            },
+            "title": <chaîne de caractères>, //titre du post
+            "content": <chaîne de caractères>, //contenu du post
+            "created_at": <timestamp UTC>, //date de création du post
+            "updated_at": <timestamp UTC> //date de la dernière modification du post
         }
     ]
-    
+    ```
 - Code de status `500 Internal Server Error` lors d'une erreur serveur

@@ -18,7 +18,6 @@ use tracing::warn;
 #[derive(serde::Deserialize)]
 pub struct NewPost {
     pub title: String,
-    pub description: String,
     pub content: String,
 }
 
@@ -34,15 +33,13 @@ pub async fn publish_post_route(
     };
 
     let title = post.title.trim();
-    let description = post.description.trim();
     let content = post.content.trim();
 
-    check_new_post_data(auth_user.id, title, description, content)?;
+    check_new_post_data(auth_user.id, title, content)?;
 
     struct PostWithAuthorWrong {
         id: i64,
         title: String,
-        description: String,
         created_at: OffsetDateTime,
         author_id: i64,
         author_username: String,
@@ -54,7 +51,6 @@ pub async fn publish_post_route(
         "./src/queries/insert_post.sql",
         auth_user.id,
         title,
-        description,
         content,
     )
     .fetch_one(&app_state.pool)
@@ -70,7 +66,6 @@ pub async fn publish_post_route(
     let post = NotificationPost {
         id: post.id,
         title: post.title,
-        description: post.description,
         author: PublicPostAuthor {
             id: post.author_id,
             username: post.author_username,

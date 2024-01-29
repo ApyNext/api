@@ -27,7 +27,6 @@ pub struct NotificationPost {
     pub id: i64,
     pub author: PublicPostAuthor,
     pub title: String,
-    pub description: String,
     pub created_at: OffsetDateTime,
 }
 
