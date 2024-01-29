@@ -103,18 +103,16 @@ pub fn check_register_infos(user: &NewAccount) -> Result<(), AppError> {
         ));
     }
 
-    if let Some(biography) = &user.biography {
-        if biography.len() > 300 {
-            warn!(
-                "Biography `{}` to long ({}/300)",
-                biography,
-                biography.len()
-            );
-            return Err(AppError::forbidden_error(Some(format!(
-                "Biographie trop longue {}/300",
-                biography.len()
-            ))));
-        }
+    if user.biography.len() > 300 {
+        warn!(
+            "Biography `{}` to long ({}/300)",
+            user.biography,
+            user.biography.len()
+        );
+        return Err(AppError::forbidden_error(Some(format!(
+            "Biographie trop longue {}/300",
+            user.biography.len()
+        ))));
     }
 
     Ok(())

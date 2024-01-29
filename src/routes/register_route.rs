@@ -20,9 +20,15 @@ pub struct NewAccount {
     pub email: String,
     pub password: String,
     pub birthdate: i64,
-    pub dark_mode: Option<bool>,
-    pub biography: Option<String>,
+    #[serde(default = "r#true")]
+    pub dark_mode: bool,
+    #[serde(default = "String::new")]
+    pub biography: String,
     pub is_male: Option<bool>,
+}
+
+fn r#true() -> bool {
+    true
 }
 
 pub async fn register_route(
@@ -31,6 +37,7 @@ pub async fn register_route(
 ) -> Result<StatusCode, AppError> {
     register_user.username = register_user.username.to_lowercase();
     register_user.email = register_user.email.to_lowercase();
+
     check_register_infos(&register_user)?;
 
     let email = register_user.email.parse::<Address>().map_err(|e| {

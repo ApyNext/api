@@ -1,6 +1,7 @@
 use time::OffsetDateTime;
 
 use super::account::AccountPermission;
+use serde::Serialize;
 
 pub struct Post {
     pub id: i64,
@@ -11,7 +12,7 @@ pub struct Post {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct PublicPost {
     pub id: i64,
     pub author: PublicPostAuthor,
@@ -21,7 +22,16 @@ pub struct PublicPost {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
+pub struct NotificationPost {
+    pub id: i64,
+    pub author: PublicPostAuthor,
+    pub title: String,
+    pub description: String,
+    pub created_at: OffsetDateTime,
+}
+
+#[derive(Serialize)]
 pub struct PublicPostAuthor {
     pub id: i64,
     pub username: String,

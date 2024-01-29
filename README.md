@@ -125,6 +125,7 @@ Headers :
 
 Body (JSON) :
 - title => chaîne de caractères
+- description => chaîne de caractères
 - content => chaîne de caractères
 
 Renvoie :

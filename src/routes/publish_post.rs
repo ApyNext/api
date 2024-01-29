@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use crate::models::account::AccountPermission;
-use crate::models::post::{PublicPost, PublicPostAuthor};
+use crate::models::post::{NotificationPost, PublicPostAuthor};
+use crate::utils::post::check_new_post_data;
 use crate::{
     extractors::auth_extractor::AuthUser,
     utils::{
@@ -17,6 +18,7 @@ use tracing::warn;
 #[derive(serde::Deserialize)]
 pub struct NewPost {
     pub title: String,
+    pub description: String,
     pub content: String,
 }
 
@@ -31,34 +33,17 @@ pub async fn publish_post_route(
         return Err(AppError::you_have_to_be_connected_to_perform_this_action_error());
     };
 
-    if post.title.len() < 3 || post.title.len() > 50 {
-        warn!(
-            "User {} tried to create a post with a title with a wrong length : {}/50",
-            auth_user.id,
-            post.title.len()
-        );
-        return Err(AppError::forbidden_error(Some(
-            "Le titre d'un post doit contenir entre 3 et 50 caractères.",
-        )));
-    }
+    let title = post.title.trim();
+    let description = post.description.trim();
+    let content = post.content.trim();
 
-    if post.content.len() < 10 || post.content.len() > 1000 {
-        warn!(
-            "User {} tried to create a post with a content with a wrong length : {}/1000",
-            auth_user.id,
-            post.content.len()
-        );
-        return Err(AppError::forbidden_error(Some(
-            "Le contenu d'un post doit contenir entre 10 et 1 000 caractères.",
-        )));
-    }
+    check_new_post_data(auth_user.id, title, description, content)?;
 
     struct PostWithAuthorWrong {
         id: i64,
         title: String,
-        content: String,
+        description: String,
         created_at: OffsetDateTime,
-        updated_at: OffsetDateTime,
         author_id: i64,
         author_username: String,
         author_permission: AccountPermission,
@@ -68,8 +53,9 @@ pub async fn publish_post_route(
         PostWithAuthorWrong,
         "./src/queries/insert_post.sql",
         auth_user.id,
-        post.title,
-        post.content,
+        title,
+        description,
+        content,
     )
     .fetch_one(&app_state.pool)
     .await
@@ -81,17 +67,16 @@ pub async fn publish_post_route(
         }
     };
 
-    let post = PublicPost {
+    let post = NotificationPost {
         id: post.id,
         title: post.title,
-        content: post.content,
+        description: post.description,
         author: PublicPostAuthor {
             id: post.author_id,
             username: post.author_username,
             permission: post.author_permission,
         },
         created_at: post.created_at,
-        updated_at: post.updated_at,
     };
 
     let event = WsEvent::new_new_post_notification_event(&post);

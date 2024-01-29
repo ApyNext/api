@@ -8,7 +8,6 @@ use crate::{
     AppState,
 };
 use axum::extract::{Query, State};
-use axum_macros::debug_handler;
 use serde_json::json;
 use std::sync::Arc;
 use time::OffsetDateTime;

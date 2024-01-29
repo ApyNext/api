@@ -124,6 +124,7 @@ Headers :
 
 Body (JSON) :
 - title => string
+- description => string
 - content => string
 
 Returns :
